@@ -1,18 +1,27 @@
-import type { SignInData } from "../types/auth.type";
+import type { SignInData, SignUpData } from "../types/auth.type";
+import type { User } from "../types/user.type";
 import { api } from "../utils/axios-client";
 import axios from "axios";
 
+//futur add : lastLoginAt(derniere connexion le ...)
 export type LoginResponse = {
-    accessToken: string;
+    accessToken: string; 
+    user: User
 };
 
 export type RefreshResponse = {
-    accessToken: string;
+    accessToken: string; 
+    user: User
 };
 
 export class AuthApi {
     static async login(body: SignInData): Promise<LoginResponse> {
         const { data } = await api.post("auth/login", body);
+        return data;
+    }
+
+    static async register(body: SignUpData): Promise<User> {
+        const { data } = await api.post("auth/register", body);
         return data;
     }
 
@@ -25,7 +34,7 @@ export class AuthApi {
         return data;
     }
 
-    async logout(): Promise<void> {
+    static async logout(): Promise<void> {
         await api.post("auth/logout", {}, { withCredentials: true });
     }
 }
