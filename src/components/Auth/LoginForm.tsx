@@ -3,6 +3,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { loginSchema, type LoginValues } from "../../schemas/auth.schemas";
 import { FieldError } from "./FieldError";
 import { BTN_FOCUS_RING, INPUT_CLASS } from "../../constants/styles";
+import { AuthApi } from "../../api/auth.api";
+import { useNavigate } from "react-router";
+import { useAuthStore } from "../../store/auth.store";
+import { useToastStore } from "../../store/toast.store";
 
 /**
  * LoginForm
@@ -11,6 +15,9 @@ import { BTN_FOCUS_RING, INPUT_CLASS } from "../../constants/styles";
  * via zodResolver qui fait le pont entre les deux.
  */
 export function LoginForm() {
+
+  const navigate = useNavigate(); // Hook de navigation de react-router-dom
+
   const {
     register, // permet de "brancher" un input non-contrôlé au formulaire
     handleSubmit, // wrapper qui valide les données avant d'appeler onSubmit
@@ -18,10 +25,24 @@ export function LoginForm() {
   } = useForm<LoginValues>({ resolver: zodResolver(loginSchema) });
 
   // Handler appelé uniquement si la validation Zod passe.
-  // TODO: remplacer le console.log par l'appel réel au service d'auth
-  // (probablement dans services/ vu ta convention de dossiers)
-  const onSubmit = (values: LoginValues) => {
-    console.log("login", values);
+
+  const onSubmit = async (values: LoginValues) => {
+    try {
+      const { accessToken, user } = await AuthApi.login(values); // Appel à l'API pour se connecter
+      
+      useAuthStore.getState().setAccessToken(accessToken); // Stocke le token dans le store Zustand
+      useAuthStore.getState().setUser(user); // Stocke l'utilisateur dans le store Zustand
+
+      navigate("/app"); // Redirige vers le dashboard après connexion réussie
+
+    } catch (error) {
+      console.error("Erreur lors de la connexion :", error);
+      useToastStore.getState().addToast(
+        "Email ou mot de passe incorrect.",
+        "error"
+      );
+    } 
+    
   };
 
   return (
