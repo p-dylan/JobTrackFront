@@ -39,11 +39,17 @@ function axiosClient(): AxiosInstance {
                 originalRequest._retry = true;
 
                 try {
-                    const { accessToken } = await AuthApi.refresh();
+
+                    const { accessToken, user } = await AuthApi.refresh();
+
                     useAuthStore.getState().setAccessToken(accessToken);
+                    useAuthStore.getState().setUser(user);
+
                     originalRequest.headers.Authorization = `Bearer ${accessToken}`;
                     return api(originalRequest);
+
                 } catch (refreshError) {
+                    
                     useAuthStore.getState().clearAuth();
                     window.location.href = "/login";
                     return Promise.reject(refreshError);
