@@ -1,39 +1,40 @@
 import { MapPin, Clock, Heart, X, BadgeCheck } from "lucide-react";
-
-type WorkMode = "onSite" | "Remote" | "Hybrid";
-
-const WORK_MODE_LABEL: Record<WorkMode, string> = {
-  onSite: "Sur site",
-  Remote: "À distance",
-  Hybrid: "Hybride",
-};
+import { Link } from "react-router";
+import type { WorkMode } from "../../types/job_offering.type";
+import { WORK_MODE_LABEL } from "../../constants/job_offering";
 
 // En dessous de ce nombre de candidatures, on incite à postuler tôt plutôt
 // que d'afficher la date de publication.
 const EARLY_APPLICANT_THRESHOLD = 5;
 
 interface OfferCardProps {
+  to: string;
   role: string;
   company: string;
-  location: string;
+  contractLabel: string;
+  location: string | null;
   timeAgo: string;
   workMode?: WorkMode;
+  // pas encore fourni par le ms : gardés optionnels pour plus tard
   applicantCount?: number;
-  saved: boolean;
   verified?: boolean;
+  saved: boolean;
   onToggleSave: () => void;
-  onDismiss: () => void;
+  onDismiss?: () => void;
 }
 
+// Carte d'une offre : titre cliquable vers le détail, entreprise, lieu, cœur favori et bouton masquer.
 export function OfferCard({
+  to,
   role,
   company,
+  contractLabel,
   location,
   timeAgo,
-  workMode = "onSite",
+  workMode = "ON_SITE",
   applicantCount,
-  saved,
   verified,
+  saved,
   onToggleSave,
   onDismiss,
 }: OfferCardProps) {
@@ -49,7 +50,9 @@ export function OfferCard({
       <div className="min-w-0 flex-1 space-y-0.5 leading-none">
         <div className="flex items-start justify-between gap-2">
           <h3 className="min-w-0 flex items-center gap-1 font-bold text-primary leading-none hover:underline cursor-pointer">
-            <span className="truncate">{role}</span>
+            <Link to={to} className="truncate">
+              {role}
+            </Link>
             {verified && (
               <BadgeCheck
                 aria-label="Offre vérifiée"
@@ -73,25 +76,31 @@ export function OfferCard({
             >
               <Heart className="w-5 h-5" fill={saved ? "currentColor" : "none"} />
             </button>
-            <button
-              type="button"
-              aria-label="Masquer cette offre"
-              onClick={onDismiss}
-              className="btn btn-ghost btn-circle w-11 h-11 min-h-0 text-base-content/40 hover:text-error"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            {onDismiss && (
+              <button
+                type="button"
+                aria-label="Masquer cette offre"
+                onClick={onDismiss}
+                className="btn btn-ghost btn-circle w-11 h-11 min-h-0 text-base-content/40 hover:text-error"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            )}
           </div>
         </div>
 
-        <p className="text-sm text-base-content/70 font-medium truncate">{company}</p>
+        <p className="text-sm text-base-content/70 font-medium truncate">
+          {company} · {contractLabel}
+        </p>
 
         <div className="flex items-start justify-between gap-2 text-sm text-base-content/60">
           <span className="flex flex-col min-w-0 gap-0.5">
-            <span className="flex items-center gap-1 min-w-0">
-              <MapPin className="w-3.5 h-3.5 shrink-0" />
-              <span className="truncate">{location}</span>
-            </span>
+            {location && (
+              <span className="flex items-center gap-1 min-w-0">
+                <MapPin className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">{location}</span>
+              </span>
+            )}
             {isEarlyApplicant && (
               <span className="text-xs font-medium text-success">
                 Soyez l'un des premiers candidats

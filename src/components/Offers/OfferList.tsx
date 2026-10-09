@@ -1,25 +1,20 @@
 import { OfferCard } from "./OfferCard";
-
-interface Offer {
-  id: number;
-  role: string;
-  company: string;
-  location: string;
-  timeAgo: string;
-  workMode?: "onSite" | "Remote" | "Hybrid";
-  applicantCount?: number;
-  verified?: boolean;
-}
+import type { JobOffering } from "../../types/job_offering.type";
+import { CONTRACT_TYPE_LABEL } from "../../constants/job_offering";
+import { timeAgo } from "../../utils/timeAgo";
 
 interface OfferListProps {
-  offers: Offer[];
-  savedIds: number[];
-  onToggleSave: (id: number) => void;
-  onDismiss: (id: number) => void;
+  offers: JobOffering[];
+  getCompanyName: (companyId: number) => string;
+  savedIds: string[];
+  onToggleSave: (id: string) => void;
+  onDismiss?: (id: string) => void;
 }
 
+// Transforme les offres du ms en cartes (nom d'entreprise, libellé du contrat, "il y a Xh").
 export function OfferList({
   offers,
+  getCompanyName,
   savedIds,
   onToggleSave,
   onDismiss,
@@ -28,17 +23,21 @@ export function OfferList({
     <div className="divide-y divide-base-200">
       {offers.map((offer) => (
         <OfferCard
-          key={offer.id}
-          role={offer.role}
-          company={offer.company}
+          key={offer._id}
+          to={`/app/offers/${offer._id}`}
+          role={offer.title}
+          company={getCompanyName(offer.companyId)}
+          contractLabel={
+            offer.partTime
+              ? `${CONTRACT_TYPE_LABEL[offer.contractType]} · Temps partiel`
+              : CONTRACT_TYPE_LABEL[offer.contractType]
+          }
           location={offer.location}
-          timeAgo={offer.timeAgo}
+          timeAgo={timeAgo(offer.createdAt)}
           workMode={offer.workMode}
-          applicantCount={offer.applicantCount}
-          verified={offer.verified}
-          saved={savedIds.includes(offer.id)}
-          onToggleSave={() => onToggleSave(offer.id)}
-          onDismiss={() => onDismiss(offer.id)}
+          saved={savedIds.includes(offer._id)}
+          onToggleSave={() => onToggleSave(offer._id)}
+          onDismiss={onDismiss ? () => onDismiss(offer._id) : undefined}
         />
       ))}
     </div>

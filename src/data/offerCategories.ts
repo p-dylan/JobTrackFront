@@ -14,7 +14,7 @@ import {
   Laptop,
   type LucideIcon,
 } from "lucide-react";
-import rawMockOffers from "./mockOffers.json";
+import type { FindJobOfferingsParams } from "../types/job_offering.type";
 
 export interface OfferCategory {
   key: string;
@@ -22,6 +22,10 @@ export interface OfferCategory {
   description: string;
   icon: LucideIcon;
   colorClass: string;
+  // Filtre envoyé à GET /job_offering quand le badge est actif. Les badges
+  // mélangent 3 notions côté ms : mode de travail (workMode), temps partiel
+  // (partTime) et secteur d'activité (category).
+  filter: Pick<FindJobOfferingsParams, "workMode" | "partTime" | "category">;
 }
 
 export const offerCategories: OfferCategory[] = [
@@ -31,6 +35,7 @@ export const offerCategories: OfferCategory[] = [
     description: "Travaillez entièrement à distance, sans contrainte de site.",
     icon: Laptop,
     colorClass: "bg-sky-500",
+    filter: { workMode: "REMOTE" },
   },
   {
     key: "hybride",
@@ -38,6 +43,7 @@ export const offerCategories: OfferCategory[] = [
     description: "Un équilibre entre présentiel et télétravail, où que vous soyez.",
     icon: Home,
     colorClass: "bg-rose-400",
+    filter: { workMode: "HYBRID" },
   },
   {
     key: "informatique",
@@ -45,6 +51,7 @@ export const offerCategories: OfferCategory[] = [
     description: "Développement, support et infrastructure pour les équipes tech.",
     icon: Headphones,
     colorClass: "bg-violet-500",
+    filter: { category: "INFORMATIQUE" },
   },
   {
     key: "enseignement",
@@ -52,6 +59,7 @@ export const offerCategories: OfferCategory[] = [
     description: "Former et transmettre, du primaire à l'enseignement supérieur.",
     icon: GraduationCap,
     colorClass: "bg-blue-500",
+    filter: { category: "ENSEIGNEMENT" },
   },
   {
     key: "hotellerie",
@@ -59,6 +67,7 @@ export const offerCategories: OfferCategory[] = [
     description: "Accueil, restauration et service dans l'hôtellerie-restauration.",
     icon: ConciergeBell,
     colorClass: "bg-zinc-400",
+    filter: { category: "HOTELLERIE" },
   },
   {
     key: "administration",
@@ -66,6 +75,7 @@ export const offerCategories: OfferCategory[] = [
     description: "Des postes au service de l'intérêt général, dans les collectivités et l'État.",
     icon: Building2,
     colorClass: "bg-slate-500",
+    filter: { category: "ADMINISTRATION" },
   },
   {
     key: "temps-partiel",
@@ -73,6 +83,7 @@ export const offerCategories: OfferCategory[] = [
     description: "Des missions flexibles, adaptées à votre emploi du temps.",
     icon: Clock,
     colorClass: "bg-amber-500",
+    filter: { partTime: true },
   },
   {
     key: "commerce",
@@ -80,6 +91,7 @@ export const offerCategories: OfferCategory[] = [
     description: "Vente, conseil et relation client en magasin ou à distance.",
     icon: ShoppingBag,
     colorClass: "bg-teal-500",
+    filter: { category: "COMMERCE" },
   },
   {
     key: "transport",
@@ -87,6 +99,7 @@ export const offerCategories: OfferCategory[] = [
     description: "Acheminer, organiser et optimiser les flux de marchandises.",
     icon: Truck,
     colorClass: "bg-cyan-500",
+    filter: { category: "TRANSPORT" },
   },
   {
     key: "sante",
@@ -94,6 +107,7 @@ export const offerCategories: OfferCategory[] = [
     description: "Prendre soin des patients, en établissement ou à domicile.",
     icon: HeartPulse,
     colorClass: "bg-red-500",
+    filter: { category: "SANTE" },
   },
   {
     key: "industrie",
@@ -101,6 +115,7 @@ export const offerCategories: OfferCategory[] = [
     description: "Fabrication, maintenance et production sur site industriel.",
     icon: Factory,
     colorClass: "bg-stone-500",
+    filter: { category: "INDUSTRIE" },
   },
   {
     key: "marketing",
@@ -108,6 +123,7 @@ export const offerCategories: OfferCategory[] = [
     description: "Faire connaître une marque et parler à ses clients.",
     icon: Megaphone,
     colorClass: "bg-fuchsia-500",
+    filter: { category: "MARKETING" },
   },
   {
     key: "finance",
@@ -115,24 +131,6 @@ export const offerCategories: OfferCategory[] = [
     description: "Gérer, analyser et sécuriser les flux financiers.",
     icon: PiggyBank,
     colorClass: "bg-emerald-500",
+    filter: { category: "FINANCE" },
   },
 ];
-
-export interface CategoryOffer {
-  id: number;
-  role: string;
-  company: string;
-  location: string;
-  timeAgo: string;
-  postedHoursAgo: number;
-  category: string;
-  workMode?: "onSite" | "Remote" | "Hybrid";
-  applicantCount?: number;
-  verified?: boolean;
-}
-
-// "industrie" est volontairement vide pour valider le passage par l'état
-// vide (EmptyState) quand on bascule sur une colonne sans résultat. Les
-// offres elles-mêmes vivent dans mockOffers.json (données pures, pas de
-// composants), à séparer de offerCategories qui référence des icônes React.
-export const mockOffers: CategoryOffer[] = rawMockOffers as CategoryOffer[];

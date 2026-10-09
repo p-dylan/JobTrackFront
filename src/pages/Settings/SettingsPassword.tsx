@@ -8,11 +8,15 @@ import { FieldError } from "../../components/Auth/FieldError";
 import { Header } from "../../components/Layout/Header";
 import { type ChangePasswordValues, changePasswordSchema } from "../../schemas/settings.schemas";
 import { INPUT_CLASS } from "../../constants/styles";
+import { AuthApi } from "../../api/auth.api";
+import { useAuthStore } from "../../store/auth.store";
 
 export function SettingsPassword() {
   const navigate = useNavigate();
   const [serverError, setServerError] = useState<string | null>(null);
   const successModalRef = useRef<HTMLDialogElement>(null)
+  const user = useAuthStore((state) => state.user);
+  
 
   const {
     register,
@@ -20,12 +24,20 @@ export function SettingsPassword() {
     formState: { errors, isSubmitting },
   } = useForm<ChangePasswordValues>({ resolver: zodResolver(changePasswordSchema) });
 
-  const onSubmit = async (_values: ChangePasswordValues) => {
+  if (!user) return null //user pas encore chargé on ne peut pas afficher
+
+  const onSubmit = async (values: ChangePasswordValues) => {
     setServerError(null);
     try {
-      // TODO: brancher sur PATCH /user/password
+      // confirmPassword reste côté front : le DTO back (forbidNonWhitelisted) le rejetterait
+      await AuthApi.changePassword({
+        currentPassword: values.currentPassword,
+        newPassword: values.newPassword,
+      });
+      console.log("[mot de passe] modifié avec succès");
       successModalRef.current?.showModal();
     } catch (err) {
+      console.error("Erreur lors du changement de mot de passe :", err);
       setServerError("Une erreur est survenue. Vérifie ton mot de passe actuel.");
     }
   };
@@ -50,53 +62,58 @@ export function SettingsPassword() {
               </div>
               <h1 className="text-lg font-semibold">Changer le mot de passe</h1>
             </div>
+            {user.has_password ? (
+              <form className="flex flex-col gap-4" onSubmit={handleSubmit(onSubmit)} noValidate>
+                <label className="block">
+                    <span className="text-sm text-base-content/70 mb-1 block">
+                      Mot de passe actuel
+                    </span>
+                    <input
+                      type="password"
+                      autoComplete="current-password"
+                      className={INPUT_CLASS}
+                      {...register("currentPassword")}
+                  />
+                  <FieldError error={errors.currentPassword?.message} />
+                </label>
 
-            <form className="flex flex-col gap-4" onSubmit={handleSubmit(onSubmit)} noValidate>
-              <label className="block">
-                <span className="text-sm text-base-content/70 mb-1 block">
-                  Mot de passe actuel
-                </span>
-                <input
-                  type="password"
-                  autoComplete="current-password"
-                  className={INPUT_CLASS}
-                  {...register("currentPassword")}
-                />
-                <FieldError error={errors.currentPassword?.message} />
-              </label>
+                <label className="block">
+                  <span className="text-sm text-base-content/70 mb-1 block">
+                    Nouveau mot de passe
+                  </span>
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    className={INPUT_CLASS}
+                    {...register("newPassword")}
+                  />
+                  <FieldError error={errors.newPassword?.message} />
+                </label>
 
-              <label className="block">
-                <span className="text-sm text-base-content/70 mb-1 block">
-                  Nouveau mot de passe
-                </span>
-                <input
-                  type="password"
-                  autoComplete="new-password"
-                  className={INPUT_CLASS}
-                  {...register("newPassword")}
-                />
-                <FieldError error={errors.newPassword?.message} />
-              </label>
+                <label className="block">
+                  <span className="text-sm text-base-content/70 mb-1 block">
+                    Confirmer le nouveau mot de passe
+                  </span>
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    className={INPUT_CLASS}
+                    {...register("confirmPassword")}
+                  />
+                  <FieldError error={errors.confirmPassword?.message} />
+                </label>
 
-              <label className="block">
-                <span className="text-sm text-base-content/70 mb-1 block">
-                  Confirmer le nouveau mot de passe
-                </span>
-                <input
-                  type="password"
-                  autoComplete="new-password"
-                  className={INPUT_CLASS}
-                  {...register("confirmPassword")}
-                />
-                <FieldError error={errors.confirmPassword?.message} />
-              </label>
+                {serverError && <p className="text-sm text-error">{serverError}</p>}
 
-              {serverError && <p className="text-sm text-error">{serverError}</p>}
-
-              <button type="submit" className="btn btn-primary mt-2" disabled={isSubmitting}>
-                {isSubmitting ? "Mise à jour..." : "Mettre à jour le mot de passe"}
-              </button>
-            </form>
+                <button type="submit" className="btn btn-primary mt-2" disabled={isSubmitting}>
+                  {isSubmitting ? "Mise à jour..." : "Mettre à jour le mot de passe"}
+                </button>
+              </form>
+            ) : (
+              <p className="text-sm text-base-content/70">
+                Votre compte est connecté via Google : il n'a pas de mot de passe à modifier.
+              </p>
+            )}
           </div>
         </div>
       </div>

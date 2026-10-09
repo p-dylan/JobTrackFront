@@ -15,3 +15,17 @@
 
 // Import commands.js using ES2015 syntax:
 import './commands'
+
+// Pas de session par défaut : chaque spec choisit entre cy.stubSession()
+// (user simulé, sans back) et cy.loginApi() (vrai compte, vraies données).
+
+// Pause en fin de chaque test pour avoir le temps d'observer l'écran final
+// dans le runner (cypress open). Désactivée en headless (cypress run) pour ne
+// pas rallonger la CI. Modifier TEST_PAUSE_MS pour changer la durée.
+const TEST_PAUSE_MS = 2500;
+
+afterEach(() => {
+  if (Cypress.config("isInteractive")) {
+    cy.wait(TEST_PAUSE_MS, { log: false });
+  }
+});

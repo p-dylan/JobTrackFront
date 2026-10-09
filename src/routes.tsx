@@ -9,6 +9,9 @@ import { CandidatureDetail } from "./pages/Dashboard/CandidatureDetail";
 import { Entretiens } from "./pages/Dashboard/Entretiens";
 import { EntretienDetail } from "./pages/Dashboard/EntretienDetail";
 import { Offers } from "./pages/Offers";
+import { OfferDetail } from "./pages/Offers/OfferDetail";
+import { MyOffers } from "./pages/Offers/MyOffers";
+import { ReceivedApplications } from "./pages/Offers/ReceivedApplications";
 import { Network } from "./pages/Network";
 import { Documents } from "./pages/Documents/Documents";
 import { CVPreview } from "./pages/Documents/CVPreview";
@@ -49,7 +52,16 @@ export const router = createBrowserRouter([
           { path: "entretiens/:id", Component: EntretienDetail },
         ],
       },
-      { path: "offers", Component: Offers },
+      {
+        path: "offers",
+        children: [
+          { index: true, Component: Offers },
+          // espace recruteur (routes statiques prioritaires sur :id)
+          { path: "mine", Component: MyOffers },
+          { path: "received", Component: ReceivedApplications },
+          { path: ":id", Component: OfferDetail },
+        ],
+      },
       { path: "network", Component: Network },
       {
         path: "documents",

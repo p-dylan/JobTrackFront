@@ -3,9 +3,17 @@
 // overlap, et sections en cartes repliables (même pattern que
 // ProfileContact/ProfileSkills) via SectionCard.
 import { useMemo, useState } from "react";
-import { Home, ChevronRight, Sparkles, CheckCircle2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import {
+  Home,
+  ChevronRight,
+  Sparkles,
+  CheckCircle2,
+  TrendingUp,
+  Calendar,
+  Briefcase,
+} from "lucide-react";
 import { Card as StatCard } from "../../components/Dashboard/StatsCards/StatCard";
-import { TodoGroup } from "../../components/Dashboard/UrgentTasks/TodoGroup";
 import { EventRow } from "../../components/Dashboard/RecentEvents/EventRow";
 import { DashboardHeroBanner } from "../../components/Dashboard/DashboardHeroBanner";
 import { EmptyState } from "../../components/Layout/EmptyState";
@@ -13,13 +21,13 @@ import { Header } from "../../components/Layout/Header";
 import { PageContainer } from "../../components/Layout/PageContainer";
 import { PageTitle } from "../../components/Layout/PageTitle";
 import { SectionCard } from "../../components/Layout/SectionCard";
-import { currentUser } from "../../data/currentUser";
-import {
-  dashboardStats,
-  dashboardTodayTasks,
-  dashboardUpcomingTasks,
-  dashboardRecentEvents,
-} from "../../data/dashboard";
+import { useAuthStore } from "../../store/auth.store";
+import { ApplicationApi } from "../../api/application.api";
+import { JobOfferingApi } from "../../api/job_offering.api";
+import { NotificationApi } from "../../api/notification.api";
+import { NOTIFICATION_EVENT } from "../../constants/notification";
+import { getInitials } from "../../utils/userDisplay";
+import { timeAgo } from "../../utils/timeAgo";
 
 // Le widget "Derniers événements" du dashboard n'affiche que les événements
 // pas encore vus ; ils ne sont marqués comme vus qu'au clic sur "Voir tout"
@@ -28,13 +36,11 @@ import {
 // visibles dans l'historique complet.
 const SEEN_EVENTS_KEY = "dashboard-seen-event-ids";
 
-// Ces deux widgets restent un aperçu rapide : au-delà, "Voir tout" prend le
-// relais (vers l'historique complet, ou vers Relances qui agrège relances et
-// entretiens — les lignes elles-mêmes renvoient vers la candidature/
-// l'entretien précis, pas vers cette liste globale).
+// Ce widget reste un aperçu rapide : au-delà, "Voir tout" prend le relais
+// (vers l'historique complet).
 const MAX_VISIBLE_EVENTS = 3;
-const MAX_VISIBLE_TASKS = 5;
 
+// Accueil : bandeau du user, stats réelles (candidatures, offres) et dernières notifications.
 export function Dashboard() {
   const [seenEventIds, setSeenEventIds] = useState<number[]>(() => {
     try {
@@ -45,13 +51,59 @@ export function Dashboard() {
     }
   });
 
-  const user = { name: currentUser.firstName };
-  const initials = currentUser.initials;
+  const user = useAuthStore((state) => state.user);
 
-  const stats = dashboardStats;
-  const todayTasks = dashboardTodayTasks;
-  const upcomingTasks = dashboardUpcomingTasks;
-  const recentEvents = dashboardRecentEvents;
+  const { data: myApplications = [] } = useQuery({
+    queryKey: ["applications", "mine"],
+    queryFn: () => ApplicationApi.getMine(),
+  });
+  // take: 1 : seul le total nous intéresse
+  const { data: offersPage } = useQuery({
+    queryKey: ["job_offerings", "count"],
+    queryFn: () => JobOfferingApi.getAll({ take: 1 }),
+  });
+  const { data: notifications = [] } = useQuery({
+    queryKey: ["notifications"],
+    queryFn: () => NotificationApi.getAllNotifications(),
+  });
+
+  const activeApplicationsCount = myApplications.filter(
+    (application) => application.status === "PENDING" || application.status === "ACCEPTED"
+  ).length;
+
+  const stats = [
+    {
+      label: "Candidatures actives",
+      count: activeApplicationsCount,
+      icon: TrendingUp,
+      to: "/app/candidatures",
+    },
+    {
+      // module entretien pas encore implémenté côté back
+      label: "Entretiens prévus",
+      count: 0,
+      icon: Calendar,
+      to: "/app/entretiens",
+    },
+    {
+      label: "Offres disponibles",
+      count: offersPage?.total ?? 0,
+      icon: Briefcase,
+      to: "/app/offers",
+    },
+  ];
+
+  // Notifications déjà triées par date décroissante par le back.
+  const recentEvents = useMemo(
+    () =>
+      notifications.map((notification) => ({
+        id: notification.id,
+        text: NOTIFICATION_EVENT[notification.event_type].text,
+        icon: NOTIFICATION_EVENT[notification.event_type].icon,
+        time: timeAgo(notification.created_at),
+      })),
+    [notifications]
+  );
 
   const newEvents = useMemo(
     () => recentEvents.filter((event) => !seenEventIds.includes(event.id)),
@@ -59,19 +111,7 @@ export function Dashboard() {
   );
   const visibleEvents = newEvents.slice(0, MAX_VISIBLE_EVENTS);
 
-  // Priorité aux tâches du jour pour les places disponibles dans le plafond.
-  const visibleTodayTasks = todayTasks.slice(0, MAX_VISIBLE_TASKS);
-  const visibleUpcomingTasks = upcomingTasks.slice(
-    0,
-    Math.max(0, MAX_VISIBLE_TASKS - visibleTodayTasks.length)
-  );
-
-  // "Voir tout" ne sert à rien si le dashboard montre déjà tout — contrairement
-  // à "Derniers événements", dont l'historique complet contient toujours plus
-  // que les seuls événements non lus affichés ici.
-  const totalTasksCount = todayTasks.length + upcomingTasks.length;
-  const showTasksSeeAll = totalTasksCount > MAX_VISIBLE_TASKS;
-
+  // Mémorise (localStorage) les événements affichés comme "vus" au clic sur "Voir tout".
   const markEventsAsSeen = () => {
     const merged = Array.from(
       new Set([...seenEventIds, ...recentEvents.map((event) => event.id)])
@@ -95,7 +135,7 @@ export function Dashboard() {
             revient à partir de sm. */}
         <div className="-mx-4 sm:mx-0 flex-1 flex flex-col">
           <div className="flex flex-col divide-y divide-base-300">
-            <DashboardHeroBanner initials={initials} name={user.name} />
+            <DashboardHeroBanner initials={getInitials(user)} name={user?.first_name ?? ""} />
 
             <SectionCard title="Stats rapides" collapsible={false}>
               <div className="-m-4 grid grid-cols-3">
@@ -105,36 +145,12 @@ export function Dashboard() {
               </div>
             </SectionCard>
 
-            <SectionCard
-              title="Prochaines actions"
-              collapsible={false}
-              {...(showTasksSeeAll
-                ? {
-                    headerTo: "/app/relances",
-                    headerAction: (
-                      <span className="flex items-center gap-1 text-sm">
-                        Voir tout
-                        <ChevronRight
-                          aria-hidden="true"
-                          className="w-3.5 h-3.5"
-                        />
-                      </span>
-                    ),
-                  }
-                : {})}
-            >
-              {visibleTodayTasks.length === 0 &&
-              visibleUpcomingTasks.length === 0 ? (
-                <EmptyState
-                  icon={CheckCircle2}
-                  message="Aucune action en attente, vous êtes à jour !"
-                />
-              ) : (
-                <div className="space-y-4">
-                  <TodoGroup label="Aujourd'hui" items={visibleTodayTasks} />
-                  <TodoGroup label="À venir" items={visibleUpcomingTasks} />
-                </div>
-              )}
+            {/* Relances et entretiens n'ont pas encore de back : état vide. */}
+            <SectionCard title="Prochaines actions" collapsible={false}>
+              <EmptyState
+                icon={CheckCircle2}
+                message="Aucune action en attente, vous êtes à jour !"
+              />
             </SectionCard>
 
             <SectionCard

@@ -1,18 +1,41 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
-import { ArrowLeft, Contact as ContactIcon } from "lucide-react";
+import { ArrowLeft, Contact as ContactIcon, Loader2 } from "lucide-react";
 import { Header } from "../../components/Layout/Header";
 import { INPUT_CLASS } from "../../constants/styles";
-import { currentUser } from "../../data/currentUser";
+import { useAuthStore } from "../../store/auth.store";
+import { emptyToNull, useUpdateProfil } from "../../hooks/useUpdateProfil";
+import type { User } from "../../types/user.type";
 
+// Attend que le user soit chargé, puis affiche le formulaire des contacts.
 export function ProfileContactEdit() {
+  const user = useAuthStore((state) => state.user);
+
+  // Formulaire monté seulement une fois le user chargé (rechargement direct).
+  if (!user) {
+    return (
+      <>
+        <Header />
+        <div className="p-6 flex justify-center">
+          <Loader2 className="w-6 h-6 animate-spin text-base-content/40" />
+        </div>
+      </>
+    );
+  }
+
+  return <ProfileContactEditForm user={user} />;
+}
+
+// Formulaire téléphone / site / LinkedIn / GitHub (l'email reste en lecture seule).
+function ProfileContactEditForm({ user }: { user: User }) {
   const navigate = useNavigate();
+  const updateProfil = useUpdateProfil();
+  // email : identifiant de connexion, affiché en lecture seule
   const [values, setValues] = useState({
-    email: currentUser.email,
-    phone: "+33 6 12 34 56 78",
-    website: "geoffreycugnon.dev",
-    linkedin: "linkedin.com/in/gcugnon",
-    github: "github.com/github",
+    phone: user.phone ?? "",
+    website: user.website ?? "",
+    linkedin: user.linkedin ?? "",
+    github: user.github ?? "",
   });
 
   const handleChange =
@@ -23,8 +46,12 @@ export function ProfileContactEdit() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: brancher sur PATCH /user/contact
-    navigate("/app/profile");
+    updateProfil.mutate({
+      phone: emptyToNull(values.phone),
+      website: emptyToNull(values.website),
+      linkedin: emptyToNull(values.linkedin),
+      github: emptyToNull(values.github),
+    });
   };
 
   return (
@@ -56,9 +83,13 @@ export function ProfileContactEdit() {
                 <input
                   type="email"
                   className={INPUT_CLASS}
-                  value={values.email}
-                  onChange={handleChange("email")}
+                  value={user.email}
+                  readOnly
+                  disabled
                 />
+                <span className="text-xs text-base-content/50 mt-1 block">
+                  L'email sert d'identifiant de connexion et ne peut pas être modifié ici.
+                </span>
               </label>
 
               <label className="block">
@@ -109,8 +140,12 @@ export function ProfileContactEdit() {
                 />
               </label>
 
-              <button type="submit" className="btn btn-primary mt-2">
-                Enregistrer
+              <button
+                type="submit"
+                className="btn btn-primary mt-2"
+                disabled={updateProfil.isPending}
+              >
+                {updateProfil.isPending ? "Enregistrement..." : "Enregistrer"}
               </button>
             </form>
           </div>

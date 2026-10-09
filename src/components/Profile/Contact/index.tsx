@@ -2,12 +2,13 @@ import { Mail, Phone, Globe } from "lucide-react";
 import { ContactRow } from "./ContactRow";
 import { SectionCard } from "../../Layout/SectionCard";
 
+// null = non renseigné en BDD, ligne masquée
 interface UserType {
   email: string;
-  phone: string;
-  website: string;
-  linkedin: string;
-  github: string;
+  phone: string | null;
+  website: string | null;
+  linkedin: string | null;
+  github: string | null;
 }
 
 interface ProfileContactProps {
@@ -52,9 +53,9 @@ export function ProfileContact({ user, onAdd }: ProfileContactProps) {
     { icon: <Mail className={iconSizeStyle} />, label: user?.email },
     { icon: <Phone className={iconSizeStyle} />, label: user?.phone },
     { icon: <Globe className={iconSizeStyle} />, label: user?.website },
-    { icon: linkedinIcon, label: "linkedin.com/in/..." },
-    { icon: githubIcon, label: "github.com/..." },
-  ];
+    { icon: linkedinIcon, label: user?.linkedin },
+    { icon: githubIcon, label: user?.github },
+  ].filter((contact): contact is { icon: React.JSX.Element; label: string } => !!contact.label);
 
   return (
     <SectionCard

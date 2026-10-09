@@ -13,7 +13,11 @@ import { MenuSection } from "./MenuSection";
 import { MenuLink } from "./MenuLink";
 import { ThemeToggle } from "../UI/ThemeToggle";
 import { MAIN_NAV_ITEMS, isNavItemActive } from "../../constants/nav";
-import { currentUser } from "../../data/currentUser";
+import { useAuthStore } from "../../store/auth.store";
+import { useToastStore } from "../../store/toast.store";
+import { AuthApi } from "../../api/auth.api";
+import { getFullName, getInitials } from "../../utils/userDisplay";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 interface SideMenuProps {
   open: boolean;
@@ -28,6 +32,34 @@ const MAIN_ROUTES = MAIN_NAV_ITEMS.map((item) => item.path);
 export function SideMenu({ open, onClose }: SideMenuProps) {
   const location = useLocation();
   const navigate = useNavigate();
+  // user connecté (remis à jour depuis GET user/profil par useSyncCurrentUser)
+  const user = useAuthStore((state) => state.user);
+  const queryClient = useQueryClient();
+
+  const logoutMutation = useMutation({
+    // POST auth/logout : invalide le refresh token en BDD + supprime le cookie
+    mutationFn: () => AuthApi.logout(),
+    onSuccess: () => {
+      console.log("[logout] déconnexion réussie côté serveur");
+      useToastStore.getState().addToast("Vous avez bien été déconnecté", "success");
+    },
+    onError: (error) => {
+      console.error("Erreur lors de la déconnexion :", error);
+      useToastStore
+        .getState()
+        .addToast("Déconnexion locale effectuée, le serveur n'a pas répondu", "warning");
+    },
+    // Côté front on déconnecte dans tous les cas, même si le serveur n'a pas répondu.
+    onSettled: () => {
+      console.log("[logout] store et cache vidés, retour à la connexion");
+      onClose();
+      // navigation d'abord (démonte /app : sinon Root verrait "pas de token" et
+      // relancerait un refresh au démarrage), puis on vide le store et le cache
+      navigate("/");
+      useAuthStore.getState().clearAuth();
+      queryClient.clear();
+    },
+  });
 
   const isMainRoute = MAIN_ROUTES.some((path) =>
     isNavItemActive(location.pathname, path)
@@ -58,9 +90,9 @@ export function SideMenu({ open, onClose }: SideMenuProps) {
         }`}
       >
         <MenuHeader
-          name={currentUser.name}
-          email={currentUser.email}
-          initials={currentUser.initials}
+          name={getFullName(user)}
+          email={user?.email ?? ""}
+          initials={getInitials(user)}
           onClose={onClose}
         />
 
@@ -101,13 +133,18 @@ export function SideMenu({ open, onClose }: SideMenuProps) {
               onClick={onClose}
               icon={Settings}
             />
-            <MenuLink
-              to="/"
-              label="Déconnexion"
-              onClick={onClose}
-              variant="danger"
-              icon={LogOut}
-            />
+            {/* bouton (et non lien) : il faut appeler le back avant de quitter la page */}
+            <li>
+              <button
+                type="button"
+                onClick={() => logoutMutation.mutate()}
+                disabled={logoutMutation.isPending}
+                className="text-error hover:bg-error/10"
+              >
+                <LogOut className="w-4 h-4" />
+                {logoutMutation.isPending ? "Déconnexion..." : "Déconnexion"}
+              </button>
+            </li>
           </ul>
         </div>
       </aside>

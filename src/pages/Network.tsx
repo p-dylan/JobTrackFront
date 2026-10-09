@@ -1,5 +1,11 @@
 import { useState } from "react";
 import { Plus, Users } from "lucide-react";
+import { isAxiosError } from "axios";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+
+import { CompanyApi } from "../api/company.api";
+import { ApplicationApi } from "../api/application.api";
+import { useToastStore } from "../store/toast.store";
 
 import { Header } from "../components/Layout/Header";
 import { PageContainer } from "../components/Layout/PageContainer";
@@ -23,13 +29,68 @@ export function Network() {
     "companies",
   );
 
-  const [companies, setCompanies] = useState<Company[]>([]);
+  const queryClient = useQueryClient();
+
+  // Les contacts restent en local : le module contact du back n'est pas encore implémenté.
   const [contacts, setContacts] = useState<Contact[]>([]);
 
   const [query, setQuery] = useState("");
 
   const [showForm, setShowForm] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
+
+  const { data: apiCompanies = [] } = useQuery({
+    queryKey: ["companies"],
+    queryFn: () => CompanyApi.getAll(),
+  });
+  // Sert à calculer le nombre de candidatures et le dernier statut par entreprise.
+  const { data: myApplications = [] } = useQuery({
+    queryKey: ["applications", "mine"],
+    queryFn: () => ApplicationApi.getMine(),
+  });
+
+  // Conversion back (snake_case) => type Company utilisé par les composants Network.
+  const companies: Company[] = apiCompanies.map((company) => {
+    const applications = myApplications
+      .filter((a) => a.company_id === company.id)
+      .sort((a, b) => b.created_at.localeCompare(a.created_at));
+    return {
+      id: company.id,
+      name: company.name,
+      businessSector: company.business_sector,
+      website: company.website,
+      address: company.address,
+      contactsCount: contacts.filter((c) => c.companyId === company.id).length,
+      candidaturesCount: applications.length,
+      latestApplicationStatus: applications[0]?.status ?? null,
+    };
+  });
+
+  const createCompanyMutation = useMutation({
+    mutationFn: (data: CompanyFormData) =>
+      CompanyApi.create({
+        name: data.name,
+        business_sector: data.businessSector,
+        // champs optionnels vides non envoyés (IsUrl rejette "")
+        website: data.website || undefined,
+        address: data.address || undefined,
+        is_public: true,
+      }),
+    onSuccess: (company) => {
+      console.log("[réseau] entreprise créée :", company.id, company.name);
+      queryClient.invalidateQueries({ queryKey: ["companies"] });
+      useToastStore.getState().addToast("Entreprise ajoutée", "success");
+      setShowForm(false);
+    },
+    onError: (error) => {
+      console.error("Erreur lors de la création de l'entreprise :", error);
+      const message =
+        isAxiosError(error) && error.response?.status === 409
+          ? "Une entreprise porte déjà ce nom"
+          : "Erreur lors de la création de l'entreprise";
+      useToastStore.getState().addToast(message, "error");
+    },
+  });
 
   const companyNameById = Object.fromEntries(
     companies.map((company) => [company.id, company.name]),
@@ -47,19 +108,9 @@ export function Network() {
     setContacts((prev) => prev.filter((contact) => contact.id !== id));
   }
 
+  // Envoie le formulaire entreprise au back (POST company).
   function createCompany(data: CompanyFormData) {
-    const newCompany: Company = {
-      id: Math.max(0, ...companies.map((c) => c.id)) + 1,
-      name: data.name,
-      businessSector: data.businessSector,
-      website: data.website || null,
-      address: data.address || null,
-      contactsCount: 0,
-      candidaturesCount: 0,
-      latestApplicationStatus: null,
-    };
-    setCompanies((prev) => [...prev, newCompany]);
-    setShowForm(false);
+    createCompanyMutation.mutate(data);
   }
 
   function submitContact(data: ContactFormData) {
