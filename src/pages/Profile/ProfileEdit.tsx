@@ -1,21 +1,45 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
-import { ArrowLeft, UserRound } from "lucide-react";
+import { ArrowLeft, Loader2, UserRound } from "lucide-react";
 import { Header } from "../../components/Layout/Header";
 import { INPUT_CLASS, TEXTAREA_CLASS } from "../../constants/styles";
-import { currentUser } from "../../data/currentUser";
+import { useAuthStore } from "../../store/auth.store";
+import { emptyToNull, useUpdateProfil } from "../../hooks/useUpdateProfil";
+import type { User } from "../../types/user.type";
 
+// Attend que le user soit chargé, puis affiche le formulaire d'édition du profil.
 export function ProfileEdit() {
+  const user = useAuthStore((state) => state.user);
+
+  // Au rechargement direct de la page, le user arrive après GET user/profil :
+  // le formulaire n'est monté qu'une fois qu'il est disponible.
+  if (!user) {
+    return (
+      <>
+        <Header />
+        <div className="p-6 flex justify-center">
+          <Loader2 className="w-6 h-6 animate-spin text-base-content/40" />
+        </div>
+      </>
+    );
+  }
+
+  return <ProfileEditForm user={user} />;
+}
+
+// Formulaire pré-rempli avec le profil actuel ; les champs vidés sont envoyés à null.
+function ProfileEditForm({ user }: { user: User }) {
   const navigate = useNavigate();
+  const updateProfil = useUpdateProfil();
   const [values, setValues] = useState({
-    firstName: currentUser.firstName,
-    lastName: currentUser.lastName,
-    title: "Développeur Web Junior",
-    location: "Paris, France",
-    bio: "Développeur web passionné en reconversion, spécialisé React et Node.js. À la recherche d'opportunités en startup ou scale-up pour contribuer à des projets ambitieux.",
-    availability: "Disponible immédiatement",
-    jobType: "CDI · Freelance",
-    salary: "35-45k€",
+    firstName: user.first_name,
+    lastName: user.last_name,
+    title: user.headline ?? "",
+    location: user.location ?? "",
+    bio: user.bio ?? "",
+    availability: user.availability ?? "",
+    jobType: user.job_type ?? "",
+    salary: user.salary ?? "",
   });
 
   const handleChange =
@@ -26,8 +50,16 @@ export function ProfileEdit() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: brancher sur PATCH /user/profile
-    navigate("/app/profile");
+    updateProfil.mutate({
+      first_name: values.firstName.trim(),
+      last_name: values.lastName.trim(),
+      headline: emptyToNull(values.title),
+      location: emptyToNull(values.location),
+      bio: emptyToNull(values.bio),
+      availability: emptyToNull(values.availability),
+      job_type: emptyToNull(values.jobType),
+      salary: emptyToNull(values.salary),
+    });
   };
 
   return (
@@ -62,6 +94,8 @@ export function ProfileEdit() {
                     className={INPUT_CLASS}
                     value={values.firstName}
                     onChange={handleChange("firstName")}
+                    required
+                    maxLength={100}
                   />
                 </label>
                 <label className="block">
@@ -73,6 +107,8 @@ export function ProfileEdit() {
                     className={INPUT_CLASS}
                     value={values.lastName}
                     onChange={handleChange("lastName")}
+                    required
+                    maxLength={100}
                   />
                 </label>
               </div>
@@ -150,8 +186,12 @@ export function ProfileEdit() {
                 </label>
               </div>
 
-              <button type="submit" className="btn btn-primary mt-2">
-                Enregistrer
+              <button
+                type="submit"
+                className="btn btn-primary mt-2"
+                disabled={updateProfil.isPending}
+              >
+                {updateProfil.isPending ? "Enregistrement..." : "Enregistrer"}
               </button>
             </form>
           </div>

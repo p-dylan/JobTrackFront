@@ -20,21 +20,13 @@ import { INPUT_CLASS } from "../../constants/styles";
 import { UserApi } from "../../api/user.api";
 import { useAuthStore } from "../../store/auth.store";
 import { useToastStore } from "../../store/toast.store";
-
-interface UserSettings {
-    notifications: boolean;
-    language: "fr" | "en" | "de" | "es";
-}
+import { useMutation } from "@tanstack/react-query";
 
 export function Settings() {
     const navigate = useNavigate();
 
     const user = useAuthStore((state) => state.user);
 
-    const [settings, setSettings] = useState<UserSettings>({
-        notifications: true,
-        language: "fr",
-    });
     const [twoFA] = useState(false);
 
     const aboutModalRef = useRef<HTMLDialogElement>(null);
@@ -42,32 +34,60 @@ export function Settings() {
 
     const [deleteConfirmText, setDeleteConfirmText] = useState("");
 
-    const handleDeleteAccount = async () => {
-        try {
-            //api call to delete account
-            await UserApi.deleteAccount();
-            // close modal
+    // Mutation pour la suppression du compte
+    const deleteAccountMutation = useMutation({
+        mutationFn: () => UserApi.deleteAccount(),
+        onSuccess: () => {
             deleteModalRef.current?.close();
-            // clear auth state
             useAuthStore.getState().clearAuth();
-            // redirect to login page
-            navigate("/login");
-        } catch (error) {
+            navigate("/"); // page de connexion (Home)
+        },
+        onError: (error) => {
             console.error("Erreur lors de la suppression du compte :", error);
-        }
-    };
-    // Handle notifications toggle
-    const handleToggleNotifications = async (checked: boolean) => {
-        const previousValue = settings.notifications;
+            useToastStore
+                .getState()
+                .addToast("Erreur lors de la suppression du compte", "error");
+        },
+    });
 
-        try {
-            // Update the state optimistically
-            setSettings((s) => ({
-                ...s,
-                notifications: checked,
-            }));
-            // Call the API to update the notifications setting
-            await UserApi.updateNotifications(checked);
+    // Mutation pour la mise à jour des notifications
+    const notificationsMutation = useMutation({
+        mutationFn: (checked: boolean) => UserApi.updateNotifications(checked),
+
+        onMutate: async (checked: boolean) => {
+            const previousUser = useAuthStore.getState().user;
+            // Update Zustand optimistically
+            if (previousUser) {
+                useAuthStore.getState().setUser({
+                    ...previousUser,
+                    notifications_enabled: checked,
+                });
+            }
+
+            return { previousUser };
+        },
+
+        onError: (error, checked, context) => {
+            // Revert Zustand to the previous user in case of error
+            if (context?.previousUser) {
+                useAuthStore.getState().setUser(context.previousUser);
+            }
+
+            console.error(
+                `Erreur lors de la mise à jour des notifications à ${checked} :`,
+                error,
+            );
+
+            useToastStore
+                .getState()
+                .addToast(
+                    "Erreur lors de la mise à jour des notifications",
+                    "error",
+                );
+        },
+        onSuccess: (data, checked) => {
+            console.log("Réponse serveur après mise à jour :", data);
+            useAuthStore.getState().setUser(data); // Met à jour l'utilisateur dans le store Zustand avec les nouvelles données
 
             useToastStore
                 .getState()
@@ -75,60 +95,49 @@ export function Settings() {
                     `Notifications ${checked ? "activées" : "désactivées"}`,
                     "success",
                 );
-        } catch (error) {
-            console.error(
-                "Erreur lors de la mise à jour des notifications :",
-                error,
-            );
-            // Revert to previous value in case of error
-            setSettings((s) => ({
-                ...s,
-                notifications: previousValue,
-            }));
-            useToastStore
-                .getState()
-                .addToast(
-                    "Erreur lors de la mise à jour des notifications",
-                    "error",
-                );
-        }
-    };
-    // Handle language change
-    const handleChangeLanguage = async (
-        language: "fr" | "en" | "de" | "es",
-    ) => {
-        const previousLanguage = settings.language;
+        },
+    });
 
-        try {
-            // Update the state optimistically
-            setSettings((s) => ({
-                ...s,
-                language: language,
-            }));
-            // Call the API to update the language setting
-            await UserApi.updateLanguage(language);
-            // Show a success toast
-            useToastStore
-                .getState()
-                .addToast(`Langue mise à jour vers ${language}`, "success");
-        } catch (error) {
+    // Mutation pour la mise à jour de la langue
+    const languageMutation = useMutation({
+        mutationFn: (language: "fr" | "en" | "de" | "es") =>
+            UserApi.updateLanguage(language),
+
+        onMutate: async (language: "fr" | "en" | "de" | "es") => {
+            const previousUser = useAuthStore.getState().user;
+            if (previousUser) {
+                useAuthStore.getState().setUser({
+                    ...previousUser,
+                    language,
+                });
+            }
+
+            return { previousUser };
+        },
+        onError: (error, language, context) => {
+            if (context?.previousUser) {
+                useAuthStore.getState().setUser(context.previousUser);
+            }
+
             console.error(
-                "Erreur lors de la mise à jour de la langue :",
+                `Erreur lors de la mise à jour de la langue à ${language} :`,
                 error,
             );
-            // Revert to previous value in case of error
-            setSettings((s) => ({
-                ...s,
-                language: previousLanguage,
-            }));
+
             useToastStore
                 .getState()
                 .addToast(
                     "Erreur lors de la mise à jour de la langue",
                     "error",
                 );
-        }
-    };
+        },
+        onSuccess: (data, language) => {
+            useAuthStore.getState().setUser(data);
+            useToastStore
+                .getState()
+                .addToast(`Langue mise à jour vers ${language}`, "success");
+        },
+    });
 
     return (
         <>
@@ -169,9 +178,11 @@ export function Settings() {
                                     <input
                                         type="checkbox"
                                         className="toggle toggle-primary"
-                                        checked={settings.notifications}
+                                        checked={
+                                            user?.notifications_enabled ?? false
+                                        }
                                         onChange={(e) =>
-                                            handleToggleNotifications(
+                                            notificationsMutation.mutate(
                                                 e.target.checked,
                                             )
                                         }
@@ -190,9 +201,9 @@ export function Settings() {
                                     </span>
                                     <select
                                         className="select select-ghost select-md w-auto px-10 text-right font-normal text-base-content/50 focus:outline-none"
-                                        value={settings.language}
+                                        value={user?.language ?? "fr"}
                                         onChange={(e) =>
-                                            handleChangeLanguage(
+                                            languageMutation.mutate(
                                                 e.target.value as
                                                     | "fr"
                                                     | "en"
@@ -290,7 +301,7 @@ export function Settings() {
                         <button
                             className="btn btn-error"
                             disabled={deleteConfirmText !== "SUPPRIMER"}
-                            onClick={handleDeleteAccount}
+                            onClick={() => deleteAccountMutation.mutate()}
                         >
                             Supprimer définitivement
                         </button>

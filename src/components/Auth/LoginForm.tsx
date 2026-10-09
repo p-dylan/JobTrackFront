@@ -7,6 +7,7 @@ import { AuthApi } from "../../api/auth.api";
 import { useNavigate } from "react-router";
 import { useAuthStore } from "../../store/auth.store";
 import { useToastStore } from "../../store/toast.store";
+import { GoogleLogin } from "@react-oauth/google";
 
 /**
  * LoginForm
@@ -43,6 +44,23 @@ export function LoginForm() {
       );
     } 
     
+  };
+
+  const onGoogleSuccess = async (credential?: string) => {
+    if (!credential) return;
+    try {
+      const { accessToken, user } = await AuthApi.googleLogin(credential);
+
+      useAuthStore.getState().setAccessToken(accessToken);
+      useAuthStore.getState().setUser(user);
+
+      navigate("/app");
+    } catch (error) {
+      console.error("Erreur connexion Google :", error);
+      useToastStore
+        .getState()
+        .addToast("Connexion Google impossible.", "error");
+    }
   };
 
   return (
@@ -84,6 +102,14 @@ export function LoginForm() {
       >
         Se connecter
       </button>
+      <GoogleLogin
+        onSuccess={(res) => onGoogleSuccess(res.credential)}
+        onError={() =>
+          useToastStore
+          .getState()
+          .addToast("Connexion Google annulé ou échoué.", "error")
+         }
+      />
     </form>
   );
 }

@@ -1,5 +1,7 @@
 import { SkillCategory } from "./SkillCategory";
 import { SectionCard } from "../../Layout/SectionCard";
+import { EmptyState } from "../../Layout/EmptyState";
+import { Sparkles } from "lucide-react";
 
 interface SkillGroup {
   category: string;
@@ -18,15 +20,19 @@ export function ProfileSkills({ skills, onAdd }: ProfileSkillsProps) {
       onAdd={onAdd}
       addLabel="Ajouter une compétence"
     >
-      <div className="space-y-3">
-        {skills.map((group) => (
-          <SkillCategory
-            key={group.category}
-            category={group.category}
-            items={group.items}
-          />
-        ))}
-      </div>
+      {skills.length === 0 ? (
+        <EmptyState icon={Sparkles} message="Aucune compétence renseignée pour l'instant." />
+      ) : (
+        <div className="space-y-3">
+          {skills.map((group) => (
+            <SkillCategory
+              key={group.category}
+              category={group.category}
+              items={group.items}
+            />
+          ))}
+        </div>
+      )}
     </SectionCard>
   );
 }

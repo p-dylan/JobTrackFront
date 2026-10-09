@@ -1,5 +1,10 @@
 import { useRef, useState } from "react";
-import { Briefcase, Heart } from "lucide-react";
+import { Link } from "react-router";
+import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Briefcase, Heart, Inbox, Loader2, Megaphone, Plus } from "lucide-react";
+import { JobOfferingForm } from "../components/Offers/JobOfferingForm";
+import { useToastStore } from "../store/toast.store";
+import type { CreateJobOfferingData } from "../types/job_offering.type";
 import { OfferSearchBar } from "../components/Offers/OfferSearchBar";
 import { OfferCategorySelector } from "../components/Offers/OfferCategorySelector";
 import { OfferCategoryBanner } from "../components/Offers/OfferCategoryBanner";
@@ -10,34 +15,82 @@ import { PageContainer } from "../components/Layout/PageContainer";
 import { PageTitle } from "../components/Layout/PageTitle";
 import { SectionCard } from "../components/Layout/SectionCard";
 import { Tabs } from "../components/Layout/Tabs";
-import { offerCategories, mockOffers } from "../data/offerCategories";
+import { offerCategories } from "../data/offerCategories";
+import { JobOfferingApi } from "../api/job_offering.api";
+import { OFFERS_PAGE_SIZE } from "../constants/job_offering";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
+import { useCompanyNames } from "../hooks/useCompanyNames";
+import { useFavoriteOffers } from "../hooks/useFavoriteOffers";
+import { useCurrentEmployment } from "../hooks/useCurrentEmployment";
 
 function pluralize(count: number, singular: string, plural: string) {
   return count > 1 ? plural : singular;
 }
 
+// Page Offres : recherche + badges envoyés au back, "Charger plus", onglet favoris.
 export function Offers() {
   // null = aucun filtre catégorie actif (toutes les offres affichées).
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"search" | "saved">("search");
   const [searchQuery, setSearchQuery] = useState("");
-  const [savedIds, setSavedIds] = useState<number[]>([]);
+  // "Masquer" n'a pas d'endpoint côté back : reste local à la session.
+  const [dismissedIds, setDismissedIds] = useState<string[]>([]);
   const [alertEnabled, setAlertEnabled] = useState(false);
-  const [offers, setOffers] = useState(mockOffers);
   const pageTopRef = useRef<HTMLDivElement>(null);
+
+  const getCompanyName = useCompanyNames();
+  const { favorites, savedIds, toggleFavorite } = useFavoriteOffers();
+  const { employment } = useCurrentEmployment();
+  const queryClient = useQueryClient();
+
+  // Modale "Publier une offre" (recruteur uniquement).
+  const [showOfferForm, setShowOfferForm] = useState(false);
+
+  // Publie l'offre via POST job_offering : le back déduit l'entreprise de l'emploi actuel.
+  const createOfferMutation = useMutation({
+    mutationFn: (data: CreateJobOfferingData) => JobOfferingApi.create(data),
+    onSuccess: (offer) => {
+      console.log("[offres] offre publiée :", offer._id, offer.title);
+      useToastStore.getState().addToast("Offre publiée", "success");
+      setShowOfferForm(false);
+      // recharge la liste (et "Mes offres") pour voir la nouvelle offre
+      queryClient.invalidateQueries({ queryKey: ["job_offerings"] });
+    },
+    onError: (error) => {
+      console.error("Erreur lors de la publication de l'offre :", error);
+      useToastStore.getState().addToast("Erreur lors de la publication de l'offre", "error");
+    },
+  });
 
   const activeCategoryData = offerCategories.find(
     (category) => category.key === activeCategory
   );
 
-  const toggleSave = (id: number) => {
-    setSavedIds((prev) =>
-      prev.includes(id) ? prev.filter((savedId) => savedId !== id) : [...prev, id]
-    );
+  // La recherche part côté serveur (ms : regex sur titre / description / lieu),
+  // avec un délai pour ne pas appeler l'API à chaque frappe.
+  const debouncedSearch = useDebouncedValue(searchQuery.trim());
+  const filters = {
+    search: debouncedSearch || undefined,
+    ...activeCategoryData?.filter,
   };
 
-  const dismissOffer = (id: number) => {
-    setOffers((prev) => prev.filter((offer) => offer.id !== id));
+  const offersQuery = useInfiniteQuery({
+    queryKey: ["job_offerings", "list", filters],
+    queryFn: ({ pageParam }) => {
+      console.log("[offres] chargement, filtres :", filters, "skip :", pageParam);
+      return JobOfferingApi.getAll({ ...filters, skip: pageParam, take: OFFERS_PAGE_SIZE });
+    },
+    initialPageParam: 0,
+    // page suivante tant que skip + take n'a pas atteint le total
+    getNextPageParam: (lastPage) => {
+      const nextSkip = lastPage.skip + lastPage.take;
+      return nextSkip < lastPage.total ? nextSkip : undefined;
+    },
+  });
+
+  // Cache une offre de la liste (en local seulement, pas d'endpoint côté back).
+  const dismissOffer = (id: string) => {
+    setDismissedIds((prev) => [...prev, id]);
   };
 
   // Sélection ET désélection (retour à "Toutes les offres") remontent en
@@ -48,32 +101,15 @@ export function Offers() {
     pageTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
-  // Choisir une catégorie ne filtre pas la liste courante : ça bascule vers
-  // une autre colonne de résultats, propre à cette catégorie. Sans catégorie
-  // active (aucun badge sélectionné), aucun filtrage n'est appliqué.
-  const categoryOffers =
-    activeCategory === null
-      ? offers
-      : offers.filter((offer) => offer.category === activeCategory);
-
-  const searchedOffers = categoryOffers.filter((offer) => {
-    const query = searchQuery.trim().toLowerCase();
-    if (!query) return true;
-    return (
-      offer.role.toLowerCase().includes(query) ||
-      offer.company.toLowerCase().includes(query) ||
-      offer.location.toLowerCase().includes(query)
-    );
-  });
-
-  const savedOffers = offers.filter((offer) => savedIds.includes(offer.id));
-  // Plus récent d'abord : postedHoursAgo croissant (petit nombre = publié il
-  // y a peu de temps).
-  const visibleOffers = [...(activeTab === "search" ? searchedOffers : savedOffers)].sort(
-    (a, b) => a.postedHoursAgo - b.postedHoursAgo
+  // Le tri (plus récent d'abord) est fait par le ms (sort=desc sur createdAt).
+  const searchedOffers = (offersQuery.data?.pages.flatMap((page) => page.data) ?? []).filter(
+    (offer) => !dismissedIds.includes(offer._id)
   );
+  const totalOffers = offersQuery.data?.pages[0]?.total ?? 0;
 
-  const searchResultsLabel = `${searchedOffers.length} ${pluralize(searchedOffers.length, "offre trouvée", "offres trouvées")}`;
+  const searchResultsLabel = offersQuery.isLoading
+    ? "Chargement..."
+    : `${totalOffers} ${pluralize(totalOffers, "offre trouvée", "offres trouvées")}`;
   const bannerLabel = activeCategoryData ? activeCategoryData.label : "Toutes les offres";
 
   return (
@@ -85,6 +121,31 @@ export function Offers() {
           description="Retrouvez les offres qui correspondent à votre profil"
           icon={Briefcase}
         />
+
+        {/* Espace recruteur : seulement si le user a un emploi actuel,
+            car le back déduit l'entreprise de l'employment is_current. */}
+        {employment && (
+          <div className="space-y-2 pb-3">
+            <div className="flex gap-2">
+              <Link to="/app/offers/mine" className="btn btn-sm btn-primary flex-1">
+                <Megaphone className="w-4 h-4" />
+                Mes offres
+              </Link>
+              <Link to="/app/offers/received" className="btn btn-sm btn-outline flex-1">
+                <Inbox className="w-4 h-4" />
+                Candidatures reçues
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {showOfferForm && (
+          <JobOfferingForm
+            isSubmitting={createOfferMutation.isPending}
+            onClose={() => setShowOfferForm(false)}
+            onSubmit={(data) => createOfferMutation.mutate(data)}
+          />
+        )}
 
         <div className="flex-1 flex flex-col">
           <div className="-mx-4 sm:mx-0 flex-1 flex flex-col">
@@ -140,7 +201,18 @@ export function Offers() {
                   </div>
 
                   <div className="border-t border-base-300">
-                    {visibleOffers.length === 0 ? (
+                    {offersQuery.isLoading ? (
+                      <div className="p-6 flex justify-center">
+                        <Loader2 className="w-6 h-6 animate-spin text-base-content/40" />
+                      </div>
+                    ) : offersQuery.isError ? (
+                      <div className="p-4">
+                        <EmptyState
+                          icon={Briefcase}
+                          message="Impossible de charger les offres pour le moment."
+                        />
+                      </div>
+                    ) : searchedOffers.length === 0 ? (
                       <div className="p-4">
                         <EmptyState
                           icon={Briefcase}
@@ -148,12 +220,27 @@ export function Offers() {
                         />
                       </div>
                     ) : (
-                      <OfferList
-                        offers={visibleOffers}
-                        savedIds={savedIds}
-                        onToggleSave={toggleSave}
-                        onDismiss={dismissOffer}
-                      />
+                      <>
+                        <OfferList
+                          offers={searchedOffers}
+                          getCompanyName={getCompanyName}
+                          savedIds={savedIds}
+                          onToggleSave={toggleFavorite}
+                          onDismiss={dismissOffer}
+                        />
+                        {offersQuery.hasNextPage && (
+                          <div className="p-4 flex justify-center">
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-ghost"
+                              onClick={() => offersQuery.fetchNextPage()}
+                              disabled={offersQuery.isFetchingNextPage}
+                            >
+                              {offersQuery.isFetchingNextPage ? "Chargement..." : "Charger plus"}
+                            </button>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
@@ -161,10 +248,10 @@ export function Offers() {
 
               {activeTab === "saved" && (
                 <SectionCard
-                  title={`${visibleOffers.length} ${pluralize(visibleOffers.length, "offre sauvegardée", "offres sauvegardées")}`}
+                  title={`${favorites.length} ${pluralize(favorites.length, "offre sauvegardée", "offres sauvegardées")}`}
                   collapsible={false}
                 >
-                  {visibleOffers.length === 0 ? (
+                  {favorites.length === 0 ? (
                     <EmptyState
                       icon={Heart}
                       message="Aucune offre sauvegardée pour l'instant. Cliquez sur le cœur pour en ajouter !"
@@ -172,16 +259,33 @@ export function Offers() {
                   ) : (
                     <div className="-m-4">
                       <OfferList
-                        offers={visibleOffers}
+                        offers={favorites}
+                        getCompanyName={getCompanyName}
                         savedIds={savedIds}
-                        onToggleSave={toggleSave}
-                        onDismiss={dismissOffer}
+                        onToggleSave={toggleFavorite}
                       />
                     </div>
                   )}
                 </SectionCard>
               )}
             </div>
+
+            {/* Bouton sous la liste (même style que "Ajouter une entreprise" de la
+                page Relations) : il descend au fur et à mesure que les offres s'affichent.
+                Rond "+" sur mobile, pleine largeur avec libellé à partir de sm. */}
+            {employment && (
+              <div className="bg-base-100 px-4 sm:px-0 py-3">
+                <button
+                  type="button"
+                  aria-label="Publier une offre"
+                  onClick={() => setShowOfferForm(true)}
+                  className="btn btn-primary w-11 h-11 rounded-full p-0 mx-auto flex items-center justify-center gap-2 sm:mx-0 sm:w-full sm:h-auto sm:rounded-btn sm:p-2"
+                >
+                  <Plus size={18} />
+                  <span className="hidden sm:inline">Publier une offre</span>
+                </button>
+              </div>
+            )}
 
             <div className="flex-1 bg-base-100" />
           </div>

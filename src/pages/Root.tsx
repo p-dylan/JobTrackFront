@@ -1,5 +1,6 @@
 import { Outlet, Link, useLocation } from "react-router";
-import { MessageCircle } from "lucide-react";
+import { Loader2, MessageCircle } from "lucide-react";
+import { useRestoreSession } from "../hooks/useRestoreSession";
 import { SideMenu } from "../components/SideMenu";
 import { MessagingFab } from "../components/Messaging/MessagingFab";
 import { MessagingPanel } from "../components/Messaging";
@@ -8,6 +9,7 @@ import { useMenu } from "../context/Menu/useMenu";
 import { MessagingProvider } from "../context/Messaging/MessagingContext";
 import { useMessaging } from "../context/Messaging/useMessaging";
 import { useSwipeGestures } from "../hooks/useSwipeGestures";
+import { useSyncCurrentUser } from "../hooks/useSyncCurrentUser";
 import { BOTTOM_NAV_HEIGHT } from "../constants/layout";
 import { MAIN_NAV_ITEMS, isNavItemActive } from "../constants/nav";
 
@@ -17,6 +19,9 @@ function RootContent() {
   const { openMessaging, unreadConversationIds } = useMessaging();
   const unreadCount = unreadConversationIds.length;
   useSwipeGestures();
+  // les pages (et leurs requêtes) ne s'affichent qu'une fois le token récupéré
+  const sessionReady = useRestoreSession();
+  useSyncCurrentUser();
 
   return (
     <>
@@ -25,7 +30,13 @@ function RootContent() {
 
       <div className="h-screen flex flex-col">
         <div className="flex-1 flex flex-col overflow-y-auto bg-base-200 w-full pb-16 lg:pb-0 min-h-0">
-          <Outlet />
+          {sessionReady ? (
+            <Outlet />
+          ) : (
+            <div className="flex-1 flex items-center justify-center">
+              <Loader2 className="w-6 h-6 animate-spin text-base-content/40" />
+            </div>
+          )}
         </div>
 
         <MessagingFab />

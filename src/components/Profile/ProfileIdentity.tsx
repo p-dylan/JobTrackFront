@@ -1,16 +1,17 @@
 import { useRef, useState } from "react";
 import { MapPin, Edit2, Camera } from "lucide-react";
 
+// Champs optionnels en BDD : null = non renseigné, masqué à l'affichage.
 interface UserType {
   firstName: string;
   lastName: string;
   initials: string;
-  title: string;
-  location: string;
-  bio: string;
-  availability: string;
-  jobType: string;
-  salary: string;
+  title: string | null;
+  location: string | null;
+  bio: string | null;
+  availability: string | null;
+  jobType: string | null;
+  salary: string | null;
 }
 
 interface ProfileIdentityProps {
@@ -30,7 +31,8 @@ function previewImage(
 }
 
 export function ProfileIdentity({ user, onEdit }: ProfileIdentityProps) {
-  const [avatarSrc, setAvatarSrc] = useState("https://picsum.photos/200");
+  // pas de photo en BDD : initiales par défaut, aperçu local si l'utilisateur en choisit une
+  const [avatarSrc, setAvatarSrc] = useState<string | null>(null);
   const [bannerSrc, setBannerSrc] = useState<string | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
@@ -43,7 +45,7 @@ export function ProfileIdentity({ user, onEdit }: ProfileIdentityProps) {
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) previewImage(file, avatarSrc, setAvatarSrc);
+    if (file) previewImage(file, avatarSrc ?? "", setAvatarSrc);
     e.target.value = "";
   };
 
@@ -80,11 +82,17 @@ export function ProfileIdentity({ user, onEdit }: ProfileIdentityProps) {
         {/* DaisyUI Avatar Container décalé vers le haut */}
         <div className="absolute left-4 -top-14 avatar placeholder">
           <div className="w-24 h-24 rounded-full ring-4 ring-base-100 shadow-md overflow-hidden bg-base-300">
-            <img
-              src={avatarSrc}
-              alt="Avatar"
-              className="w-full h-full object-cover object-center"
-            />
+            {avatarSrc ? (
+              <img
+                src={avatarSrc}
+                alt="Avatar"
+                className="w-full h-full object-cover object-center"
+              />
+            ) : (
+              <span className="w-full h-full flex items-center justify-center bg-primary text-primary-content text-2xl font-semibold">
+                {user.initials}
+              </span>
+            )}
           </div>
 
           <input
@@ -117,32 +125,50 @@ export function ProfileIdentity({ user, onEdit }: ProfileIdentityProps) {
               Modifier
             </button>
           </div>
-          <p className="text-sm text-base-content/70 font-medium">
-            {user.title}
-          </p>
-          <div className="flex items-center gap-1 text-base-content/50 text-sm">
-            <MapPin className="w-3.5 h-3.5" />
-            <span>{user.location}</span>
-          </div>
+          {user.title && (
+            <p className="text-sm text-base-content/70 font-medium">
+              {user.title}
+            </p>
+          )}
+          {user.location && (
+            <div className="flex items-center gap-1 text-base-content/50 text-sm">
+              <MapPin className="w-3.5 h-3.5" />
+              <span>{user.location}</span>
+            </div>
+          )}
         </div>
 
         {/* Biographie */}
-        <p className="mt-2 text-sm text-base-content/80 leading-relaxed">
-          {user.bio}
-        </p>
+        {user.bio ? (
+          <p className="mt-2 text-sm text-base-content/80 leading-relaxed whitespace-pre-line">
+            {user.bio}
+          </p>
+        ) : (
+          <p className="mt-2 text-sm text-base-content/50 italic">
+            Ajoutez une bio via « Modifier » pour vous présenter aux recruteurs.
+          </p>
+        )}
 
         {/* Badges DaisyUI */}
-        <div className="flex flex-wrap gap-2 mt-4">
-          <div className="badge badge-success badge-soft font-medium">
-            {user.availability}
+        {(user.availability || user.jobType || user.salary) && (
+          <div className="flex flex-wrap gap-2 mt-4">
+            {user.availability && (
+              <div className="badge badge-success badge-soft font-medium">
+                {user.availability}
+              </div>
+            )}
+            {user.jobType && (
+              <div className="badge badge-primary badge-soft font-medium">
+                {user.jobType}
+              </div>
+            )}
+            {user.salary && (
+              <div className="badge badge-soft font-medium">
+                {user.salary}
+              </div>
+            )}
           </div>
-          <div className="badge badge-primary badge-soft font-medium">
-            {user.jobType}
-          </div>
-          <div className="badge badge-soft font-medium">
-            {user.salary}
-          </div>
-        </div>
+        )}
       </div>
     </>
   );
