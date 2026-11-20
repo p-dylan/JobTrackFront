@@ -1,118 +1,114 @@
-// Tests sur le vrai back : les entreprises sont créées en BDD à chaque run.
-// Le nom d'une entreprise est unique côté back, d'où le suffixe horodaté.
-// Les contacts, eux, restent en local dans la page (module contact pas encore
-// branché côté front) : ils sont créés en direct mais pas enregistrés en BDD.
-// La liste contient aussi les entreprises déjà en BDD : une entreprise créée
-// arrive en bas, d'où le scrollIntoView() avant de vérifier qu'elle est visible.
+// Tests sur le vrai back : Relations = entreprises suivies + contacts (mises en relation).
+// Le compte de test (cy.loginApi) est neuf : il ne suit aucune entreprise et n'a aucun contact.
+// S'appuie sur les données du seed (npx prisma db seed) : 3 entreprises, des users
+// avec un métier (ex : "Chargé(e) de recrutement") et le compte candidat2@test.test.
 
-const uniqueName = (base: string) => `${base} ${Date.now()}`;
+const API_URL = "http://localhost:3000";
+const SEED_COMPANY = "Clinique du Parc";
+const SEED_CANDIDAT = { email: "candidat2@test.test", password: "Azerty.123", name: "Chloé Dubois" };
+
+const modal = () => cy.get('[role="dialog"]');
+const tiles = () => modal().find("ul > li");
 
 beforeEach(() => {
   cy.loginApi();
-  cy.intercept("POST", "**/company").as("createCompany");
 });
 
-// Nettoyage BDD : on garde au moins 3 entreprises par secteur, puis on
-// supprime le compte de test.
 after(() => {
-  cy.cleanupTestCompanies(3);
   cy.deleteTestUser();
 });
 
-describe("Relations - Ajout d'une entreprise", () => {
+describe("Relations - Entreprises", () => {
   beforeEach(() => {
     cy.visit("/app/network");
   });
 
-  it("ajoute une entreprise et l'affiche dans la liste", () => {
-    const acme = uniqueName("Acme Corp");
-    const beta = uniqueName("Beta Inc");
+  it("affiche un état vide puis suit une entreprise depuis la modale", () => {
+    cy.contains("Aucune entreprise suivie.").should("be.visible");
 
-    cy.contains("Ajouter une entreprise").click();
+    cy.get('button[aria-label="Suivre une entreprise"]').click();
+    modal().contains("h3", "Suivre une entreprise").should("be.visible");
+    tiles().should("have.length.greaterThan", 0);
 
-    cy.get('input[name="name"]').type(acme);
-    cy.get('input[name="businessSector"]').type("Informatique");
-    cy.get('input[name="website"]').type("https://acme.example.com");
-    cy.get('input[name="address"]').type("1 rue de Paris");
+    modal().find('input[type="search"]').type(SEED_COMPANY);
+    tiles().should("have.length", 1);
+    modal().find(`button[aria-label="Suivre ${SEED_COMPANY}"]`).click();
+    cy.contains(`Vous suivez ${SEED_COMPANY}`).should("be.visible");
+    modal().contains("button", "Suivi").should("be.visible");
 
-    cy.contains("Enregistrer").click();
-    cy.wait("@createCompany").its("response.statusCode").should("eq", 201);
-    cy.contains("Entreprise ajoutée").should("be.visible");
-    cy.contains(acme).scrollIntoView().should("be.visible");
-    cy.wait(500);
-    // Ajout d'une deuxième entreprise pour tester la liste
-    cy.contains("Ajouter une entreprise").click();
-    cy.wait(500);
-
-    cy.get('input[name="name"]').type(beta);
-    cy.get('input[name="businessSector"]').type("Marketing");
-    cy.get('input[name="website"]').type("https://beta.example.com");
-    cy.get('input[name="address"]').type("2 avenue de Lyon");
-    cy.wait(500);
-    cy.contains("Enregistrer").click();
-    cy.wait("@createCompany").its("response.statusCode").should("eq", 201);
-    cy.contains(beta).scrollIntoView().should("be.visible");
-    cy.wait(500);
+    modal().find('button[aria-label="Fermer"]').click();
+    cy.contains("button", "Entreprises (1)").should("be.visible");
+    cy.contains("a", SEED_COMPANY).should("be.visible");
   });
-});
 
-describe("Relations - Validation du formulaire entreprise", () => {
-  it("affiche les erreurs si le formulaire est vide", () => {
+  it("ouvre la fiche entreprise et ne la suit plus", () => {
+    cy.contains("a", SEED_COMPANY).click();
+    cy.location("pathname").should("match", /\/app\/network\/companies\/\d+$/);
+    cy.contains("h1", SEED_COMPANY).should("be.visible");
+    cy.contains(/Offres d'emploi \(\d+\)/).should("be.visible");
+
+    cy.contains("button", "Suivi").click();
+    cy.contains(`Vous ne suivez plus ${SEED_COMPANY}`).should("be.visible");
+    cy.contains("button", "Suivre").should("be.visible");
+
     cy.visit("/app/network");
-    cy.contains("Ajouter une entreprise").click();
-    cy.wait(500);
-    cy.contains("Enregistrer").click();
-    cy.wait(500);
-
-    cy.get(".text-error").should("have.length.greaterThan", 0);
+    cy.contains("Aucune entreprise suivie.").should("be.visible");
   });
 });
 
-describe("Relations - Ajout d'un contact", () => {
-  // Nom partagé par le beforeEach et le test (l'entreprise est créée juste avant)
-  let companyName: string;
-
+describe("Relations - Contacts", () => {
   beforeEach(() => {
-    companyName = uniqueName("Acme Corp");
     cy.visit("/app/network");
-
-    // Une entreprise doit exister pour pouvoir l'associer au contact
-    cy.contains("Ajouter une entreprise").click();
-    cy.get('input[name="name"]').type(companyName);
-    cy.get('input[name="businessSector"]').type("Informatique");
-    cy.contains("Enregistrer").click();
-    cy.wait("@createCompany").its("response.statusCode").should("eq", 201);
-    cy.contains(companyName).scrollIntoView().should("be.visible");
-    cy.wait(500);
-    // Bascule sur l'onglet Contacts
     cy.contains("button", "Contacts").click();
   });
 
-  it("ajoute un contact et l'affiche dans la liste", () => {
-    cy.contains("Ajouter un contact").click();
+  it("affiche l'annuaire en grille, charge plus et filtre par métier", () => {
+    cy.get('button[aria-label="Ajouter un contact"]').click();
+    modal().contains("h3", "Ajouter un contact").should("be.visible");
+    // 9 vignettes par page sur desktop (3 x 3)
+    tiles().should("have.length", 9);
+    modal().contains("button", "Charger plus").click();
+    tiles().should("have.length.greaterThan", 9);
 
-    cy.get('select[name="companyId"]').select(companyName);
-    cy.get('input[name="name"]').type("Jean Dupont");
-    cy.get('input[name="jobTitle"]').type("Développeur");
-    cy.get('input[name="email"]').type("jean.dupont@example.com");
-    cy.get('input[name="phone"]').type("0601020304");
+    modal().find('input[type="search"]').type("recrutement");
+    tiles().should("have.length", 3);
+    tiles().each(($tile) => cy.wrap($tile).should("contain", "Chargé(e) de recrutement"));
+  });
 
-    cy.contains("Enregistrer").click();
+  it("invite un utilisateur, qui accepte : il apparaît dans les contacts", () => {
+    cy.get('button[aria-label="Ajouter un contact"]').click();
+    modal().find('input[type="search"]').type(SEED_CANDIDAT.name.split(" ")[1]);
+    modal().find(`button[aria-label="Se connecter avec ${SEED_CANDIDAT.name}"]`).click();
+    cy.contains("Invitation envoyée").should("be.visible");
+    modal().contains("En attente").should("be.visible");
+    modal().find('button[aria-label="Fermer"]').click();
+    cy.contains("Invitations envoyées (1)").should("be.visible");
 
-    cy.contains("Jean Dupont").should("be.visible");
+    // candidat2 accepte via l'API (son propre token)
+    cy.loginApi().then(({ user }) => {
+      // email + mot de passe seulement : l'API refuse les champs inconnus (forbidNonWhitelisted)
+      const { email, password } = SEED_CANDIDAT;
+      cy.request("POST", `${API_URL}/auth/login`, { email, password }).then(({ body }) => {
+        cy.request({
+          method: "PATCH",
+          url: `${API_URL}/connection/${user.id}/accept`,
+          headers: { Authorization: `Bearer ${body.accessToken}` },
+        });
+      });
+    });
+
+    // reconnexion du compte de test (le login de candidat2 a remplacé le cookie refresh)
+    cy.loginApi();
+    cy.visit("/app/network");
+    cy.contains("button", "Contacts (1)").click();
+    cy.contains(SEED_CANDIDAT.name).should("be.visible");
+
+    // retrait du contact (window.confirm accepté automatiquement)
+    cy.get(`button[aria-label="Retirer ${SEED_CANDIDAT.name} de vos contacts"]`).click();
+    cy.contains("Relation retirée").should("be.visible");
+    cy.contains("Aucun contact.").should("be.visible");
   });
 });
 
-describe("Relations - Validation du formulaire contact", () => {
-  it("affiche les erreurs si le formulaire est vide", () => {
-    cy.visit("/app/network");
-    cy.contains("button", "Contacts").click();
-    cy.contains("Ajouter un contact").click();
-    cy.wait(500);
-    cy.contains("Enregistrer").click();
-    cy.wait(500);
-    cy.get(".text-error").should("have.length.greaterThan", 0);
-    cy.wait(500);
-    cy.contains("Annuler").click();
-  });
-});
+// module isolé : évite les conflits de constantes entre fichiers de spec
+export {};

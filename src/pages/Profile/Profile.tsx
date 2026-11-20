@@ -50,6 +50,7 @@ export function Profile() {
               lastName: user.last_name,
               initials: getInitials(user),
               title,
+              role: user.role,
               location: user.location,
               bio: user.bio,
               availability: user.availability,

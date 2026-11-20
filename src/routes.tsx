@@ -13,6 +13,7 @@ import { OfferDetail } from "./pages/Offers/OfferDetail";
 import { MyOffers } from "./pages/Offers/MyOffers";
 import { ReceivedApplications } from "./pages/Offers/ReceivedApplications";
 import { Network } from "./pages/Network";
+import { CompanyDetail } from "./pages/Network/CompanyDetail";
 import { Documents } from "./pages/Documents/Documents";
 import { CVPreview } from "./pages/Documents/CVPreview";
 import { CVEdit } from "./pages/Documents/CVEdit";
@@ -32,6 +33,9 @@ import { MessagingManage } from "./pages/Messaging/MessagingManage";
 import { MessagingPreferences } from "./pages/Messaging/MessagingPreferences";
 import { MessagingArchived } from "./pages/Messaging/MessagingArchived";
 import { MessagingAwayMessage } from "./pages/Messaging/MessagingAwayMessage";
+import { MyCompany } from "./pages/Company/MyCompany";
+import { RequireRole } from "./components/Auth/RequireRole";
+import { RECRUITING_ROLES } from "./constants/roles";
 
 export const router = createBrowserRouter([
   { path: "/", Component: Home },
@@ -56,13 +60,36 @@ export const router = createBrowserRouter([
         path: "offers",
         children: [
           { index: true, Component: Offers },
-          // espace recruteur (routes statiques prioritaires sur :id)
-          { path: "mine", Component: MyOffers },
-          { path: "received", Component: ReceivedApplications },
+          // espace recruteur (routes statiques prioritaires sur :id), réservé aux rôles de recrutement
+          {
+            path: "mine",
+            element: (
+              <RequireRole roles={RECRUITING_ROLES}>
+                <MyOffers />
+              </RequireRole>
+            ),
+          },
+          {
+            path: "received",
+            element: (
+              <RequireRole roles={RECRUITING_ROLES}>
+                <ReceivedApplications />
+              </RequireRole>
+            ),
+          },
           { path: ":id", Component: OfferDetail },
         ],
       },
-      { path: "network", Component: Network },
+      // contenu adapté au rôle (créer / rejoindre / gérer les membres)
+      { path: "company", Component: MyCompany },
+      {
+        path: "network",
+        children: [
+          { index: true, Component: Network },
+          // fiche entreprise : suivre, rejoindre, offres
+          { path: "companies/:id", Component: CompanyDetail },
+        ],
+      },
       {
         path: "documents",
         children: [

@@ -1,11 +1,10 @@
 import { useState } from "react";
 import { Plus, Users } from "lucide-react";
-import { isAxiosError } from "axios";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 
 import { CompanyApi } from "../api/company.api";
 import { ApplicationApi } from "../api/application.api";
-import { useToastStore } from "../store/toast.store";
+import { ConnectionApi } from "../api/connection.api";
 
 import { Header } from "../components/Layout/Header";
 import { PageContainer } from "../components/Layout/PageContainer";
@@ -15,33 +14,33 @@ import { Tabs } from "../components/Layout/Tabs";
 import { RelationsSearchInput } from "../components/Network/RelationsSearchInput";
 import { CompanyList } from "../components/Network/CompanyList";
 import { ContactsList } from "../components/Network/ContactsList";
-
-import { CompanyForm } from "../components/Network/CompanyForm";
-import { ContactForm } from "../components/Network/ContactForm";
+import { SearchGridModal } from "../components/Network/SearchGridModal";
+import { CompanyTile } from "../components/Network/CompanyTile";
+import { UserTile } from "../components/Network/UserTile";
 
 import type { Company } from "../types/company.types";
-import type { Contact } from "../types/contact.types";
-import type { CompanyFormData } from "../schemas/company.schemas";
-import type { ContactFormData } from "../schemas/contact.schemas";
 
+const EMPTY_PENDING = { received: [], sent: [] };
+
+// Page Relations : entreprises suivies et contacts (mises en relation) du user connecté
 export function Network() {
   const [activeTab, setActiveTab] = useState<"companies" | "contacts">(
     "companies",
   );
-
-  const queryClient = useQueryClient();
-
-  // Les contacts restent en local : le module contact du back n'est pas encore implémenté.
-  const [contacts, setContacts] = useState<Contact[]>([]);
-
   const [query, setQuery] = useState("");
+  const [showModal, setShowModal] = useState(false);
 
-  const [showForm, setShowForm] = useState(false);
-  const [editingContact, setEditingContact] = useState<Contact | null>(null);
-
-  const { data: apiCompanies = [] } = useQuery({
-    queryKey: ["companies"],
-    queryFn: () => CompanyApi.getAll(),
+  const { data: followedCompanies = [] } = useQuery({
+    queryKey: ["companies", "followed"],
+    queryFn: () => CompanyApi.getFollowed(),
+  });
+  const { data: contacts = [] } = useQuery({
+    queryKey: ["connections", "contacts"],
+    queryFn: () => ConnectionApi.getContacts(),
+  });
+  const { data: pending = EMPTY_PENDING } = useQuery({
+    queryKey: ["connections", "pending"],
+    queryFn: () => ConnectionApi.getPending(),
   });
   // Sert à calculer le nombre de candidatures et le dernier statut par entreprise.
   const { data: myApplications = [] } = useQuery({
@@ -50,7 +49,7 @@ export function Network() {
   });
 
   // Conversion back (snake_case) => type Company utilisé par les composants Network.
-  const companies: Company[] = apiCompanies.map((company) => {
+  const companies: Company[] = followedCompanies.map((company) => {
     const applications = myApplications
       .filter((a) => a.company_id === company.id)
       .sort((a, b) => b.created_at.localeCompare(a.created_at));
@@ -60,78 +59,23 @@ export function Network() {
       businessSector: company.business_sector,
       website: company.website,
       address: company.address,
-      contactsCount: contacts.filter((c) => c.companyId === company.id).length,
+      followersCount: company.followers_count,
+      contactsCount: contacts.filter((c) => c.company?.id === company.id).length,
       candidaturesCount: applications.length,
       latestApplicationStatus: applications[0]?.status ?? null,
     };
   });
 
-  const createCompanyMutation = useMutation({
-    mutationFn: (data: CompanyFormData) =>
-      CompanyApi.create({
-        name: data.name,
-        business_sector: data.businessSector,
-        // champs optionnels vides non envoyés (IsUrl rejette "")
-        website: data.website || undefined,
-        address: data.address || undefined,
-        is_public: true,
-      }),
-    onSuccess: (company) => {
-      console.log("[réseau] entreprise créée :", company.id, company.name);
-      queryClient.invalidateQueries({ queryKey: ["companies"] });
-      useToastStore.getState().addToast("Entreprise ajoutée", "success");
-      setShowForm(false);
-    },
-    onError: (error) => {
-      console.error("Erreur lors de la création de l'entreprise :", error);
-      const message =
-        isAxiosError(error) && error.response?.status === 409
-          ? "Une entreprise porte déjà ce nom"
-          : "Erreur lors de la création de l'entreprise";
-      useToastStore.getState().addToast(message, "error");
-    },
-  });
-
-  const companyNameById = Object.fromEntries(
-    companies.map((company) => [company.id, company.name]),
-  );
-
+  // Filtre local des listes affichées (la recherche dans l'annuaire se fait dans la modale)
+  const search = query.toLowerCase();
   const filteredCompanies = companies.filter((company) =>
-    company.name.toLowerCase().includes(query.toLowerCase()),
+    company.name.toLowerCase().includes(search),
   );
-
-  const filteredContacts = contacts.filter((contact) =>
-    contact.name.toLowerCase().includes(query.toLowerCase()),
+  const filteredContacts = contacts.filter((user) =>
+    [user.first_name, user.last_name, user.job_title, user.headline, user.company?.name]
+      .filter(Boolean)
+      .some((value) => value!.toLowerCase().includes(search)),
   );
-
-  function deleteContact(id: number) {
-    setContacts((prev) => prev.filter((contact) => contact.id !== id));
-  }
-
-  // Envoie le formulaire entreprise au back (POST company).
-  function createCompany(data: CompanyFormData) {
-    createCompanyMutation.mutate(data);
-  }
-
-  function submitContact(data: ContactFormData) {
-    if (editingContact) {
-      setContacts((prev) =>
-        prev.map((c) =>
-          c.id === editingContact.id
-            ? { ...c, ...data, phone: data.phone || null }
-            : c,
-        ),
-      );
-    } else {
-      const newContact: Contact = {
-        id: Math.max(0, ...contacts.map((c) => c.id)) + 1,
-        ...data,
-        phone: data.phone || null,
-      };
-      setContacts((prev) => [...prev, newContact]);
-    }
-    setShowForm(false);
-  }
 
   return (
     <>
@@ -142,8 +86,8 @@ export function Network() {
 
         <Tabs
           items={[
-            { key: "companies", label: "Entreprises" },
-            { key: "contacts", label: "Contacts" },
+            { key: "companies", label: `Entreprises (${companies.length})` },
+            { key: "contacts", label: `Contacts (${contacts.length})` },
           ]}
           value={activeTab}
           onChange={setActiveTab}
@@ -155,44 +99,42 @@ export function Network() {
         {activeTab === "companies" ? (
           <CompanyList companies={filteredCompanies} />
         ) : (
-          <ContactsList
-            contacts={filteredContacts}
-            companyNameById={companyNameById}
-            onEdit={(contact) => {
-              setEditingContact(contact);
-              setShowForm(true);
-            }}
-            onDelete={deleteContact}
-          />
+          <ContactsList contacts={filteredContacts} pending={pending} />
         )}
 
         <button
           className="btn btn-primary w-11 h-11 rounded-full p-0 mx-auto flex items-center justify-center gap-2 sm:mx-0 sm:w-full sm:h-auto sm:rounded-btn sm:p-2"
-          onClick={() => {
-            setEditingContact(null);
-            setShowForm(true);
-          }}
+          aria-label={activeTab === "companies" ? "Suivre une entreprise" : "Ajouter un contact"}
+          onClick={() => setShowModal(true)}
         >
           <Plus size={18} />
           <span className="hidden sm:inline">
-            {activeTab === "companies"
-              ? "Ajouter une entreprise"
-              : "Ajouter un contact"}
+            {activeTab === "companies" ? "Suivre une entreprise" : "Ajouter un contact"}
           </span>
         </button>
 
-        {showForm &&
+        {showModal &&
           (activeTab === "companies" ? (
-            <CompanyForm
-              onClose={() => setShowForm(false)}
-              onSubmit={createCompany}
+            <SearchGridModal
+              title="Suivre une entreprise"
+              searchPlaceholder="Rechercher par nom ou secteur..."
+              emptyMessage="Aucune entreprise trouvée."
+              queryKey="companies"
+              fetchPage={CompanyApi.search}
+              getKey={(company) => company.id}
+              renderItem={(company) => <CompanyTile company={company} />}
+              onClose={() => setShowModal(false)}
             />
           ) : (
-            <ContactForm
-              initialData={editingContact}
-              companies={companies}
-              onClose={() => setShowForm(false)}
-              onSubmit={submitContact}
+            <SearchGridModal
+              title="Ajouter un contact"
+              searchPlaceholder="Rechercher par métier (ex : développeur), nom ou ville..."
+              emptyMessage="Aucun utilisateur trouvé."
+              queryKey="connection_users"
+              fetchPage={ConnectionApi.searchUsers}
+              getKey={(user) => user.id}
+              renderItem={(user) => <UserTile user={user} />}
+              onClose={() => setShowModal(false)}
             />
           ))}
       </PageContainer>

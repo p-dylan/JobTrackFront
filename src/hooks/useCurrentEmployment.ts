@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { EmploymentApi } from "../api/employment.api";
 
-// Emploi actuel du user connecté : c'est lui qui donne le droit de publier
-// des offres (le back déduit companyId de l'employment is_current).
+// Emplois du user connecté : appartenance validée (ACTIVE) et demande d'adhésion en attente (PENDING).
+// Seul un emploi actuel ACTIVE rattache le user à une entreprise côté back.
 export function useCurrentEmployment() {
   const { data: employments = [], isLoading } = useQuery({
     queryKey: ["employment", "mine"],
@@ -10,7 +10,8 @@ export function useCurrentEmployment() {
   });
 
   return {
-    employment: employments.find((e) => e.is_current) ?? null,
+    employment: employments.find((e) => e.is_current && e.status === "ACTIVE") ?? null,
+    pendingRequest: employments.find((e) => e.is_current && e.status === "PENDING") ?? null,
     isLoading,
   };
 }

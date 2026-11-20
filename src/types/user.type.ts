@@ -1,6 +1,10 @@
+import type { RoleName } from "../constants/roles";
+
 export type User = {
     id: number;
     role_id: number | null;
+    // nom du rôle renvoyé par le back (null = compte ancien sans rôle)
+    role: RoleName | null;
     email: string;
     first_name: string;
     last_name: string;

@@ -24,7 +24,7 @@ describe("Profil - Consultation", () => {
     cy.contains("h2.text-xl", "Cypress Test").should("be.visible");
     // pas de photo en BDD : avatar = initiales (ciblé sur le profil, le menu
     // latéral caché les affiche aussi)
-    cy.get(".avatar.placeholder").contains(/^CT$/).should("be.visible");
+    cy.get(".avatar.placeholder").not("aside .avatar").contains(/^CT$/).should("be.visible");
     cy.contains("Ajoutez une bio via « Modifier »").should("be.visible");
   });
 
@@ -46,7 +46,8 @@ describe("Profil - Consultation", () => {
     cy.contains("Aucune compétence renseignée pour l'instant.").should("not.exist");
 
     cy.get("@skillsHeader").click();
-    cy.contains("Aucune compétence renseignée pour l'instant.").should("be.visible");
+    // la section est en bas de page : on la fait défiler avant de vérifier
+    cy.contains("Aucune compétence renseignée pour l'instant.").scrollIntoView().should("be.visible");
   });
 
   it("affiche un aperçu local de la nouvelle photo de profil", () => {

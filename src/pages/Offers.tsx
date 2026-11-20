@@ -21,7 +21,7 @@ import { OFFERS_PAGE_SIZE } from "../constants/job_offering";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { useCompanyNames } from "../hooks/useCompanyNames";
 import { useFavoriteOffers } from "../hooks/useFavoriteOffers";
-import { useCurrentEmployment } from "../hooks/useCurrentEmployment";
+import { useRole } from "../hooks/useRole";
 
 function pluralize(count: number, singular: string, plural: string) {
   return count > 1 ? plural : singular;
@@ -40,7 +40,8 @@ export function Offers() {
 
   const getCompanyName = useCompanyNames();
   const { favorites, savedIds, toggleFavorite } = useFavoriteOffers();
-  const { employment } = useCurrentEmployment();
+  // espace recruteur : réservé aux rôles recruteur / RH / PDG
+  const { canRecruit } = useRole();
   const queryClient = useQueryClient();
 
   // Modale "Publier une offre" (recruteur uniquement).
@@ -122,9 +123,9 @@ export function Offers() {
           icon={Briefcase}
         />
 
-        {/* Espace recruteur : seulement si le user a un emploi actuel,
-            car le back déduit l'entreprise de l'employment is_current. */}
-        {employment && (
+        {/* Espace recruteur : seulement pour les rôles recruteur / RH / PDG,
+            le back déduit l'entreprise de l'emploi actuel validé. */}
+        {canRecruit && (
           <div className="space-y-2 pb-3">
             <div className="flex gap-2">
               <Link to="/app/offers/mine" className="btn btn-sm btn-primary flex-1">
@@ -273,7 +274,7 @@ export function Offers() {
             {/* Bouton sous la liste (même style que "Ajouter une entreprise" de la
                 page Relations) : il descend au fur et à mesure que les offres s'affichent.
                 Rond "+" sur mobile, pleine largeur avec libellé à partir de sm. */}
-            {employment && (
+            {canRecruit && (
               <div className="bg-base-100 px-4 sm:px-0 py-3">
                 <button
                   type="button"

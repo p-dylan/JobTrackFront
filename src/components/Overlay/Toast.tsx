@@ -14,7 +14,8 @@ export default function Toast() {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="toast toast-end toast-bottom z-50">
+    // z-[1000] : au-dessus des modales daisyUI (z-index 999), sinon un toast déclenché depuis une modale ouverte passe dessous
+    <div className="toast toast-end toast-bottom z-[1000]">
       {toasts.map((toast) => (
         <div
           key={toast.id}

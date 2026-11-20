@@ -1,11 +1,14 @@
 export type ApplicationStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'WITHDRAWN';
 
+// Entreprise suivie, telle qu'affichée dans Relations
 export type Company = {
   id: number;
   name: string;
   businessSector: string;
   website: string | null;
   address: string | null;
+  followersCount: number;
+  // mes contacts qui travaillent dans cette entreprise
   contactsCount: number;
   candidaturesCount: number;
   latestApplicationStatus: ApplicationStatus | null;
@@ -25,7 +28,19 @@ export type ApiCompany = {
   deletedAt: string | null;
 };
 
-// Body de POST /company
+// Entreprise enrichie (search / followed / details) : abonnés + suivie par le user connecté
+export type CompanyWithFollow = ApiCompany & {
+  followers_count: number;
+  is_followed: boolean;
+};
+
+// Réponse paginée des modales de recherche (entreprises / users)
+export type Paginated<T> = {
+  data: T[];
+  total: number;
+};
+
+// Body de POST /company/own
 export type CreateCompanyData = {
   name: string;
   business_sector: string;

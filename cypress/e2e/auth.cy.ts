@@ -91,6 +91,22 @@ describe("Authentification - Connexion", () => {
     cy.location("pathname").should("eq", "/");
   });
 
+  it("n'accuse pas le mot de passe si le serveur est en panne", () => {
+    cy.intercept("POST", "**/auth/login", {
+      statusCode: 500,
+      body: { message: "Internal server error" },
+    }).as("login");
+
+    cy.get('input[name="email"]').type("jean.dupont@email.fr");
+    cy.get('input[name="password"]').type("password123");
+    cy.get('form button[type="submit"]').click();
+
+    cy.wait("@login");
+    cy.contains(".alert-error", "Service indisponible").should("be.visible");
+    cy.contains("Email ou mot de passe incorrect.").should("not.exist");
+    cy.location("pathname").should("eq", "/");
+  });
+
   it("prévient l'utilisateur en cas de trop nombreuses tentatives (429)", () => {
     cy.intercept("POST", "**/auth/login", {
       statusCode: 429,

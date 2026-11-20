@@ -3,12 +3,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { companySchema, type CompanyFormData } from "../../schemas/company.schemas";
 
 
-type Props = { 
-    onClose: () => void; 
-    onSubmit: (data: CompanyFormData) => void; 
+type Props = {
+    onClose: () => void;
+    onSubmit: (data: CompanyFormData) => void;
+    title?: string;
 };
 
-export function CompanyForm({ onClose, onSubmit }: Props) {
+export function CompanyForm({ onClose, onSubmit, title = "Ajouter une entreprise" }: Props) {
     const {
         register,
         handleSubmit,
@@ -21,7 +22,7 @@ export function CompanyForm({ onClose, onSubmit }: Props) {
     return (
         <div className="modal modal-open">
             <div className="modal-box">
-                <h3 className="font-bold text-lg mb-4">Ajouter une entreprise</h3>
+                <h3 className="font-bold text-lg mb-4">{title}</h3>
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
                     <input
                         {...register("name")}

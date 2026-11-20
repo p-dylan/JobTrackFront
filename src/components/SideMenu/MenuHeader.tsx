@@ -1,10 +1,13 @@
 import { X } from "lucide-react";
 import { Avatar } from "../UI/Avatar";
+import { RoleBadge } from "../Company/RoleBadge";
+import type { RoleName } from "../../constants/roles";
 
 interface MenuHeaderProps {
   name: string;
   email: string;
   initials: string;
+  role?: RoleName | null;
   // Photo réelle optionnelle : l'avatar dégradé + initiales n'est qu'un
   // fallback tant qu'aucune photo de profil n'est disponible.
   avatarUrl?: string;
@@ -15,6 +18,7 @@ export function MenuHeader({
   name,
   email,
   initials,
+  role,
   avatarUrl,
   onClose,
 }: MenuHeaderProps) {
@@ -25,6 +29,9 @@ export function MenuHeader({
         <div>
           <h2 className="font-semibold text-base-content">{name}</h2>
           <p className="text-sm text-base-content/70">{email}</p>
+          <div className="mt-1">
+            <RoleBadge role={role} />
+          </div>
         </div>
       </div>
 

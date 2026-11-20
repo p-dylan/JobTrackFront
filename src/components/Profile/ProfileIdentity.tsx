@@ -1,5 +1,7 @@
 import { useRef, useState } from "react";
 import { MapPin, Edit2, Camera } from "lucide-react";
+import { RoleBadge } from "../Company/RoleBadge";
+import type { RoleName } from "../../constants/roles";
 
 // Champs optionnels en BDD : null = non renseigné, masqué à l'affichage.
 interface UserType {
@@ -7,6 +9,7 @@ interface UserType {
   lastName: string;
   initials: string;
   title: string | null;
+  role?: RoleName | null;
   location: string | null;
   bio: string | null;
   availability: string | null;
@@ -114,8 +117,9 @@ export function ProfileIdentity({ user, onEdit }: ProfileIdentityProps) {
         {/* Bloc d'informations textuelles */}
         <div className="space-y-1">
           <div className="flex items-center justify-between gap-2">
-            <h2 className="text-xl font-bold text-base-content">
+            <h2 className="flex flex-wrap items-center gap-2 text-xl font-bold text-base-content">
               {user.firstName} {user.lastName}
+              <RoleBadge role={user.role} />
             </h2>
             <button
               onClick={onEdit}

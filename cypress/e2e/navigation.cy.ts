@@ -62,6 +62,7 @@ describe("Navigation - Menu latéral", () => {
     { label: "Réseau", path: "/app/network" },
     { label: "Documents", path: "/app/documents" },
     { label: "Profil", path: "/app/profile" },
+    { label: "Mon entreprise", path: "/app/company" },
     { label: "Paramètres", path: "/app/settings" },
   ];
 

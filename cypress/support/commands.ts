@@ -18,7 +18,6 @@ let testUserEmail: string | null = null;
 
 type TestUser = { id: number; email: string; first_name: string; last_name: string };
 type LoginBody = { accessToken: string; user: TestUser };
-type ApiCompany = { id: number; business_sector: string; created_by_user_id: number };
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -28,8 +27,6 @@ declare global {
       stubSession(): Chainable<void>;
       /** Crée (une fois par spec) un vrai compte puis s'y connecte via l'API. */
       loginApi(): Chainable<LoginBody>;
-      /** Supprime (soft delete) les entreprises créées par le compte de test, en en gardant au moins `minPerSector` par secteur. */
-      cleanupTestCompanies(minPerSector?: number): Chainable<void>;
       /** Supprime le compte de test de la BDD. */
       deleteTestUser(): Chainable<void>;
       /** Ouvre le menu latéral et clique sur le lien donné. */
@@ -75,34 +72,6 @@ Cypress.Commands.add("loginApi", () => {
       }),
     )
     .its("body");
-});
-
-Cypress.Commands.add("cleanupTestCompanies", (minPerSector = 3) => {
-  if (!testUserEmail) return;
-
-  cy.loginApi().then(({ accessToken, user }) => {
-    cy.request<ApiCompany[]>(`${API_URL}/company`).then(({ body: companies }) => {
-      const countBySector: Record<string, number> = {};
-      companies.forEach((company) => {
-        countBySector[company.business_sector] = (countBySector[company.business_sector] ?? 0) + 1;
-      });
-
-      // Seules les entreprises du compte de test sont supprimées, les plus
-      // récentes d'abord, tant que le secteur en garde plus que minPerSector.
-      companies
-        .filter((company) => company.created_by_user_id === user.id)
-        .sort((a, b) => b.id - a.id)
-        .forEach((company) => {
-          if (countBySector[company.business_sector] <= minPerSector) return;
-          countBySector[company.business_sector] -= 1;
-          cy.request({
-            method: "DELETE",
-            url: `${API_URL}/company/${company.id}`,
-            headers: { Authorization: `Bearer ${accessToken}` },
-          });
-        });
-    });
-  });
 });
 
 Cypress.Commands.add("deleteTestUser", () => {

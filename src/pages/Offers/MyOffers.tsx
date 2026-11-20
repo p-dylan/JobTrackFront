@@ -102,7 +102,7 @@ export function MyOffers() {
         ) : !employment ? (
           <EmptyState
             icon={Megaphone}
-            message="Vous devez avoir un emploi actuel dans une entreprise pour publier des offres."
+            message="Vous devez être membre validé d'une entreprise pour publier des offres."
           />
         ) : (
           <div className="-mx-4 sm:mx-0 space-y-2">

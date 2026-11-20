@@ -6,6 +6,7 @@ import {
   Settings,
   LogOut,
   ArrowLeft,
+  Building2,
 } from "lucide-react";
 import { MenuOverlay } from "./MenuOverlay";
 import { MenuHeader } from "./MenuHeader";
@@ -73,6 +74,8 @@ export function SideMenu({ open, onClose }: SideMenuProps) {
       ({ path, label, icon }) => ({ to: path, label, icon })
     ),
     { to: "/app/profile", label: "Profil", icon: User },
+    // contenu adapté au rôle : créer / rejoindre / gérer son entreprise
+    { to: "/app/company", label: "Mon entreprise", icon: Building2 },
   ];
 
   const secondaryLinks = [
@@ -93,6 +96,7 @@ export function SideMenu({ open, onClose }: SideMenuProps) {
           name={getFullName(user)}
           email={user?.email ?? ""}
           initials={getInitials(user)}
+          role={user?.role}
           onClose={onClose}
         />
 

@@ -1,6 +1,7 @@
 {
   "id": 1,
-  "role_id": 1,
+  "role_id": 2,
+  "role": "candidat",
   "email": "jean.dupont@email.fr",
   "first_name": "Jean",
   "last_name": "Dupont",

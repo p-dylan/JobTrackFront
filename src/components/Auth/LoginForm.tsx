@@ -1,3 +1,4 @@
+import { isAxiosError } from "axios";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { loginSchema, type LoginValues } from "../../schemas/auth.schemas";
@@ -38,11 +39,16 @@ export function LoginForm() {
 
     } catch (error) {
       console.error("Erreur lors de la connexion :", error);
+      // 429 : déjà signalé par un toast dans l'intercepteur axios (l'erreur n'est plus une erreur axios)
+      if (!isAxiosError(error)) return;
+      // 400 = identifiants refusés ; le reste (500, serveur injoignable) n'est pas une erreur de saisie
       useToastStore.getState().addToast(
-        "Email ou mot de passe incorrect.",
+        error.response?.status === 400
+          ? "Email ou mot de passe incorrect."
+          : "Service indisponible, veuillez réessayer dans quelques instants.",
         "error"
       );
-    } 
+    }
     
   };
 
